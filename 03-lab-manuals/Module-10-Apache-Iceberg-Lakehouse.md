@@ -1,7 +1,7 @@
 # Module 10: Apache Iceberg Lakehouse and Apache Spark on Google Cloud
 
 ## Motivation:
-Shoonya, our hypothetical retail company has a small set of IT teams that are partial to open source, to table formats - specifically Apache Iceberg, want minimal cloud lock-in, and have a lot of code assets using Apache Spark and with data in Apache Iceberg. Shoonya is interested in learning the options and architectural considerations for Apache Spark and Apache Iceberg on Google Cloud and get hands on experience.
+YeYo, our hypothetical retail company has a small set of IT teams that are partial to open source, to table formats - specifically Apache Iceberg, want minimal cloud lock-in, and have a lot of code assets using Apache Spark and with data in Apache Iceberg. YeYo is interested in learning the options and architectural considerations for Apache Spark and Apache Iceberg on Google Cloud and get hands on experience.
 
 <hr>
 

@@ -1,0 +1,7 @@
+seller_id,seller_name,fulfillment_type,rating,city,state_code,onboarded_date,is_active
+MKT-S001,Wellness Hub Co.,YEYO_FULFILLED,4.7,Chicago,IL,2025-03-14,Y
+MKT-S002,PureLeaf Naturals,SELLER_FULFILLED,4.5,Madison,WI,2025-06-02,Y
+MKT-S003,FitGear Direct,SELLER_FULFILLED,4.3,Indianapolis,IN,2025-01-20,Y
+MKT-S004,Glow Lab Beauty,YEYO_FULFILLED,4.6,Evanston,IL,2025-08-11,Y
+MKT-S005,Little Sprout Baby,SELLER_FULFILLED,4.8,Milwaukee,WI,2025-09-30,Y
+MKT-S006,Bargain Bin Outlet,SELLER_FULFILLED,3.9,Gary,IN,2024-11-05,N

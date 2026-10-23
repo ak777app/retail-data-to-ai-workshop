@@ -1,0 +1,5 @@
+location_id,location_name,location_type,city,state_code
+NAP-IL-ST,Naperville store,Store,Naperville,IL
+SCH-IL-ST,Schaumburg store,Store,Schaumburg,IL
+CHI-IL-ST,Chicago store,Store,Chicago,IL
+WHE-IL-WH,Wheaton warehouse,Warehouse,Wheaton,IL

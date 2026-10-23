@@ -1,7 +1,7 @@
 # Module 09: Embedding Generation and Vector Search in BigQuery
 
 ## Motivation:
-Shoonya, our hypothetical retail company has a multitude of unstructured data in addition to structured, and needs the same to be easily searchable and with high accuracy. There are a number of vector store options available on Google Cloud and from third parties. Shoonya's enterprise architecture team is interested in learning the BigQuery embeddings & search capabilities while they work on options and considerations for vector stores and search on GCP and arrive at a decision tree and strategic recommendation as an enterprise standard.
+YeYo, our hypothetical retail company has a multitude of unstructured data in addition to structured, and needs the same to be easily searchable and with high accuracy. There are a number of vector store options available on Google Cloud and from third parties. YeYo's enterprise architecture team is interested in learning the BigQuery embeddings & search capabilities while they work on options and considerations for vector stores and search on GCP and arrive at a decision tree and strategic recommendation as an enterprise standard.
 
 <hr>
 
@@ -80,7 +80,7 @@ The following search functions are available: <br>
 
 ## Module scope:
 
-In this tutorial, you'll build a [**semantic search**](https://cloud.google.com/discover/what-is-semantic-search) utility for a Shoonya, our hypothetical retail store chain. You will use [BigQuery](https://cloud.google.com/bigquery/docs) and [Vertex AI](https://cloud.google.com/vertex-ai/docs), to go beyond simple keyword matching by generating [**vector embeddings**](https://cloud.google.com/vertex-ai/generative-ai/docs/embeddings) for product text descriptions _and_ for images. This allows customers to find products based on conceptual meaning, not just keywords, creating a more intuitive shopping experience.
+In this tutorial, you'll build a [**semantic search**](https://cloud.google.com/discover/what-is-semantic-search) utility for a YeYo, our hypothetical retail store chain. You will use [BigQuery](https://cloud.google.com/bigquery/docs) and [Vertex AI](https://cloud.google.com/vertex-ai/docs), to go beyond simple keyword matching by generating [**vector embeddings**](https://cloud.google.com/vertex-ai/generative-ai/docs/embeddings) for product text descriptions _and_ for images. This allows customers to find products based on conceptual meaning, not just keywords, creating a more intuitive shopping experience.
 
 By the end, you will know how to:
 

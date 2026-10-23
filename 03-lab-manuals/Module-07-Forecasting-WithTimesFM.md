@@ -2,7 +2,7 @@
 
 
 ## Motivation:
-Shoonya, our hypothetical retail company currently has forecasting modules developed by their data scientists that runs on batch weekly. Shoonya's data scientists would like to explore forecasting functionality within BigQuery - TimesFM (LLM powered) and Arima Plus. They are looking for quick samples on the sample retail data, so they can get hands on and learn what is supported and tuneable for forecast accuracy.
+YeYo, our hypothetical retail company currently has forecasting modules developed by their data scientists that runs on batch weekly. YeYo's data scientists would like to explore forecasting functionality within BigQuery - TimesFM (LLM powered) and Arima Plus. They are looking for quick samples on the sample retail data, so they can get hands on and learn what is supported and tuneable for forecast accuracy.
 
 <hr>
 

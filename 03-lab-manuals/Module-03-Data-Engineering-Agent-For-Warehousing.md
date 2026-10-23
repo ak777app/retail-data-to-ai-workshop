@@ -1,7 +1,7 @@
 # Module 03: BigQuery Data Engineering Agent for Data Warehousing 
 
 ## Motivation recap:
-Shoonya, our hypothetical retail chain understands that to stay competitive, adopt cutting edge/innovative technologies and accelerate speed to production, they need to use the latest and greatest LLM powered product features. Shoonya's architecture board has approved the Data Engineering Agent for use. The IT leadership would like data engineers to get well versed with the BigQuery Data Engineering Agent (DEA) - and have targeted for their data engineers to explore the DEA to build their warehouse dimensional model.
+YeYo, our hypothetical retail chain understands that to stay competitive, adopt cutting edge/innovative technologies and accelerate speed to production, they need to use the latest and greatest LLM powered product features. YeYo's architecture board has approved the Data Engineering Agent for use. The IT leadership would like data engineers to get well versed with the BigQuery Data Engineering Agent (DEA) - and have targeted for their data engineers to explore the DEA to build their warehouse dimensional model.
 
 This module provides exactly such an immersive learning experience and via the Dataform UI (DEA API is in development).
 

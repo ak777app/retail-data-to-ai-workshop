@@ -406,7 +406,7 @@ python miscellaneous/deployment_test.py
 <hr>
 
 
-## 5. Create the Agentspace App (Shoonya Retail Agentverse) on Gemini Enterprise
+## 5. Create the Agentspace App (YeYo Retail Agentverse) on Gemini Enterprise
 
 ### 5.1. Grant the deployer (yourself), incremental IAM permissions
 
@@ -422,7 +422,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 ### 5.2. Create the application
 ```
 PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
-AGENTSPACE_APP_ID="shoonya-agentverse"
+AGENTSPACE_APP_ID="yeyo-agentverse"
 AGENTSPACE_LOCATION="global"
 
 
@@ -432,7 +432,7 @@ curl -X POST \
 -H "X-Goog-User-Project: $PROJECT_ID" \
 "https://discoveryengine.googleapis.com/v1/projects/$PROJECT_ID/locations/$AGENTSPACE_LOCATION/collections/default_collection/engines?engineId=$AGENTSPACE_APP_ID" \
 -d '{
-  "displayName": "Shoonya Agentverse",
+  "displayName": "YeYo Agentverse",
   "dataStoreIds": [],
   "solutionType": "SOLUTION_TYPE_SEARCH",
   "industryVertical": "GENERIC",
@@ -449,8 +449,8 @@ THIS IS JUST FOR AWARENESS
   "done": true,
   "response": {
     "@type": "type.googleapis.com/google.cloud.discoveryengine.v1.Engine",
-    "name": "projects/606804615020/locations/global/collections/default_collection/engines/shoonya-agentverse",
-    "displayName": "Shoonya Agentverse",
+    "name": "projects/606804615020/locations/global/collections/default_collection/engines/yeyo-agentverse",
+    "displayName": "YeYo Agentverse",
     "solutionType": "SOLUTION_TYPE_SEARCH",
     "searchEngineConfig": {
       "searchTier": "SEARCH_TIER_STANDARD"
@@ -486,7 +486,7 @@ You should see the "Deep Research" agent automatically registered:
 {
   "agents": [
     {
-      "name": "projects/606804615020/locations/global/collections/default_collection/engines/shoonya-agentverse/assistants/default_assistant/agents/deep_research",
+      "name": "projects/606804615020/locations/global/collections/default_collection/engines/yeyo-agentverse/assistants/default_assistant/agents/deep_research",
       "displayName": "Deep Research",
       "description": "This agent is a specialized agent that gathers, analyzes, and understands information from internal and external sources. It generates a plan, an in-depth report, and a summary.",
       "createTime": "2026-01-26T21:35:32.821528855Z",
@@ -547,7 +547,7 @@ curl -X POST \
 Author's output:
 ```
 {
-  "name": "projects/606804615020/locations/global/collections/default_collection/engines/shoonya-agentverse/assistants/default_assistant/agents/1624231307787687665",
+  "name": "projects/606804615020/locations/global/collections/default_collection/engines/yeyo-agentverse/assistants/default_assistant/agents/1624231307787687665",
   "displayName": "Data Analyst",
   "description": "An agent who can analyze data on your behalf with just natural language questions as input",
   "icon": {
@@ -565,7 +565,7 @@ Author's output:
 
 Make note of the IDs here-
 1. Agent ID on Gemini Enterprise is `1624231307787687665` in
-`projects/sdfsdfsdf/locations/global/collections/default_collection/engines/shoonya-agentverse/assistants/default_assistant/agents/1624231307787687665`
+`projects/sdfsdfsdf/locations/global/collections/default_collection/engines/yeyo-agentverse/assistants/default_assistant/agents/1624231307787687665`
 2. Agent name on Gemini Enterprise is `Data Analyst`
 3. Agent Engine (reasoning engine) ID is `1306920202704781312` from `projects/data-insights-quickstart/locations/us-central1/reasoningEngines/1306920202704781312`
 4. It is super important that the right reasoning engine is registered with Gemini Enterprise for things to work
@@ -587,7 +587,7 @@ THIS IS INFORMATIONAL
 {
   "agents": [
     {
-      "name": "projects/606804615020/locations/global/collections/default_collection/engines/shoonya-agentverse/assistants/default_assistant/agents/1624231307787687665",
+      "name": "projects/606804615020/locations/global/collections/default_collection/engines/yeyo-agentverse/assistants/default_assistant/agents/1624231307787687665",
       "displayName": "Data Analyst",
       "description": "An agent who can analyze data on your behalf with just natural language questions as input",
       "icon": {
@@ -603,7 +603,7 @@ THIS IS INFORMATIONAL
       "state": "ENABLED"
     },
     {
-      "name": "projects/606804615020/locations/global/collections/default_collection/engines/shoonya-agentverse/assistants/default_assistant/agents/deep_research",
+      "name": "projects/606804615020/locations/global/collections/default_collection/engines/yeyo-agentverse/assistants/default_assistant/agents/deep_research",
       "displayName": "Deep Research",
       "description": "This agent is a specialized agent that gathers, analyzes, and understands information from internal and external sources. It generates a plan, an in-depth report, and a summary.",
       "createTime": "2026-01-26T21:35:32.821528855Z",

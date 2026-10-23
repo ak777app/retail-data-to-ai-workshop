@@ -2,7 +2,7 @@
 
 ## Motivation:
 
-Shoonya, our (hypothetical) retail store chain needs a variety of "fit for purpose" databases. Of focal importance to Shoonya are relational/transactional/operational database flavor and analytical database flavor. Shoonya is impressed with Google Cloud's database portfolio (including support for vector embeddings, subject area flavors such as graph, and geospatial), and Shoonya's Architecture board, after careful review of options for databases and considerations has landed on AlloyDB (postgres managed) as its operational datastore, and BigQuery as its Analytical datastore. Shoonya's data engineers need to ensure that data is in sync across the their operational datastore and analytical datastore and want a simplified solution to run data reconciliation without data movement or switiching database logins. 
+YeYo, our (hypothetical) retail store chain needs a variety of "fit for purpose" databases. Of focal importance to YeYo are relational/transactional/operational database flavor and analytical database flavor. YeYo is impressed with Google Cloud's database portfolio (including support for vector embeddings, subject area flavors such as graph, and geospatial), and YeYo's Architecture board, after careful review of options for databases and considerations has landed on AlloyDB (postgres managed) as its operational datastore, and BigQuery as its Analytical datastore. YeYo's data engineers need to ensure that data is in sync across the their operational datastore and analytical datastore and want a simplified solution to run data reconciliation without data movement or switiching database logins. 
 
 This module covers a solution for AlloyDB and BigQuery interop for such seamless exploration and synchronization checks.
 
