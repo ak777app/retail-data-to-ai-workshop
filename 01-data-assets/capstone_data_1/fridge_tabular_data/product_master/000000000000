@@ -1,28 +1,28 @@
 item_number,appliance_type,appliance_sub_type,brand,model_id,omni_item_id,description,price,product_image_gcs_uri,is_active
 PHA-1001,pharmacy,pain_relief,YEYO CARE,m-PHA-1001,PHA-1001-OM,Acetaminophen 500 mg Caplets - 100 ct,8.99,,Y
-PHA-1002,pharmacy,pain_relief,ADVIL,m-PHA-1002,PHA-1002-OM,Ibuprofen 200 mg Tablets - 50 ct,11.49,,N
+PHA-1002,pharmacy,pain_relief,ADVIL,m-PHA-1002,PHA-1002-OM,Ibuprofen 200 mg Tablets - 50 ct,11.49,,Y
 PHA-1003,pharmacy,allergy,CLARITIN,m-PHA-1003,PHA-1003-OM,Loratadine 10 mg 24-Hour Allergy Relief - 30 ct,21.99,,Y
-PHA-1004,pharmacy,allergy,YEYO CARE,m-PHA-1004,PHA-1004-OM,Cetirizine 10 mg Allergy Tablets - 45 ct,14.99,,N
-PHA-1005,pharmacy,cold_flu,VICKS,m-PHA-1005,PHA-1005-OM,DayQuil & NyQuil Cold and Flu Combo Pack - 48 LiquiCaps,19.99,,N
-PHA-1006,pharmacy,cold_flu,SUDAFED,m-PHA-1006,PHA-1006-OM,Pseudoephedrine 30 mg Sinus Congestion - 24 ct (pharmacy counter),9.79,,N
-PHA-1007,pharmacy,digestive,PEPTO-BISMOL,m-PHA-1007,PHA-1007-OM,Upset Stomach Relief Liquid - 12 fl oz,7.49,,N
-PHA-1008,pharmacy,first_aid,BAND-AID,m-PHA-1008,PHA-1008-OM,Flexible Fabric Adhesive Bandages Assorted - 100 ct,9.99,,N
-PHA-1009,pharmacy,first_aid,YEYO CARE,m-PHA-1009,PHA-1009-OM,Digital Oral Thermometer with Fever Alert,12.99,,N
+PHA-1004,pharmacy,allergy,YEYO CARE,m-PHA-1004,PHA-1004-OM,Cetirizine 10 mg Allergy Tablets - 45 ct,14.99,,Y
+PHA-1005,pharmacy,cold_flu,VICKS,m-PHA-1005,PHA-1005-OM,DayQuil & NyQuil Cold and Flu Combo Pack - 48 LiquiCaps,19.99,,Y
+PHA-1006,pharmacy,cold_flu,SUDAFED,m-PHA-1006,PHA-1006-OM,Pseudoephedrine 30 mg Sinus Congestion - 24 ct (pharmacy counter),9.79,,Y
+PHA-1007,pharmacy,digestive,PEPTO-BISMOL,m-PHA-1007,PHA-1007-OM,Upset Stomach Relief Liquid - 12 fl oz,7.49,,Y
+PHA-1008,pharmacy,first_aid,BAND-AID,m-PHA-1008,PHA-1008-OM,Flexible Fabric Adhesive Bandages Assorted - 100 ct,9.99,,Y
+PHA-1009,pharmacy,first_aid,YEYO CARE,m-PHA-1009,PHA-1009-OM,Digital Oral Thermometer with Fever Alert,12.99,,Y
 PHA-1010,pharmacy,vitamins_supplements,NATURE MADE,m-PHA-1010,PHA-1010-OM,Vitamin D3 2000 IU Softgels - 220 ct,16.49,,Y
-PHA-1011,pharmacy,vitamins_supplements,EMERGEN-C,m-PHA-1011,PHA-1011-OM,Vitamin C 1000 mg Immune Support Drink Mix - 30 packets,12.79,,N
-PHA-1012,pharmacy,vitamins_supplements,YEYO CARE,m-PHA-1012,PHA-1012-OM,Daily Multivitamin for Adults - 100 tablets,10.99,,N
+PHA-1011,pharmacy,vitamins_supplements,EMERGEN-C,m-PHA-1011,PHA-1011-OM,Vitamin C 1000 mg Immune Support Drink Mix - 30 packets,12.79,,Y
+PHA-1012,pharmacy,vitamins_supplements,YEYO CARE,m-PHA-1012,PHA-1012-OM,Daily Multivitamin for Adults - 100 tablets,10.99,,Y
 PER-2001,personal_care,oral_care,CREST,m-PER-2001,PER-2001-OM,3D White Whitening Toothpaste - 2 pack,8.49,,Y
-PER-2002,personal_care,oral_care,ORAL-B,m-PER-2002,PER-2002-OM,iO Series 3 Rechargeable Electric Toothbrush,79.99,,N
-PER-2003,personal_care,hand_hygiene,YEYO CARE,m-PER-2003,PER-2003-OM,Hand Sanitizer Gel with Aloe - 8 fl oz,3.99,,N
+PER-2002,personal_care,oral_care,ORAL-B,m-PER-2002,PER-2002-OM,iO Series 3 Rechargeable Electric Toothbrush,79.99,,Y
+PER-2003,personal_care,hand_hygiene,YEYO CARE,m-PER-2003,PER-2003-OM,Hand Sanitizer Gel with Aloe - 8 fl oz,3.99,,Y
 BEA-3001,beauty_skincare,skincare,CERAVE,m-BEA-3001,BEA-3001-OM,Daily Moisturizing Lotion - 19 fl oz,17.99,,Y
-BEA-3002,beauty_skincare,suncare,NEUTROGENA,m-BEA-3002,BEA-3002-OM,Ultra Sheer Sunscreen SPF 70 - 3 fl oz,12.49,,N
-BEA-3003,beauty_skincare,skincare,THE ORDINARY,m-BEA-3003,BEA-3003-OM,Niacinamide 10% + Zinc 1% Serum - 1 fl oz,6.99,,N
-LIF-4001,lifestyle,fitness,YEYO ACTIVE,m-LIF-4001,LIF-4001-OM,Non-Slip Yoga Mat 6 mm - Sage,29.99,,N
-LIF-4002,lifestyle,fitness,YEYO ACTIVE,m-LIF-4002,LIF-4002-OM,Resistance Bands Set - 5 levels,19.99,,N
+BEA-3002,beauty_skincare,suncare,NEUTROGENA,m-BEA-3002,BEA-3002-OM,Ultra Sheer Sunscreen SPF 70 - 3 fl oz,12.49,,Y
+BEA-3003,beauty_skincare,skincare,THE ORDINARY,m-BEA-3003,BEA-3003-OM,Niacinamide 10% + Zinc 1% Serum - 1 fl oz,6.99,,Y
+LIF-4001,lifestyle,fitness,YEYO ACTIVE,m-LIF-4001,LIF-4001-OM,Non-Slip Yoga Mat 6 mm - Sage,29.99,,Y
+LIF-4002,lifestyle,fitness,YEYO ACTIVE,m-LIF-4002,LIF-4002-OM,Resistance Bands Set - 5 levels,19.99,,Y
 LIF-4003,lifestyle,wellness,HYDRO FLASK,m-LIF-4003,LIF-4003-OM,Insulated Water Bottle 32 oz - Wide Mouth,44.95,,Y
-LIF-4004,lifestyle,home_wellness,URPOWER,m-LIF-4004,LIF-4004-OM,Essential Oil Aroma Diffuser - 300 ml,24.99,,N
-LIF-4005,lifestyle,wellness,FITBIT,m-LIF-4005,LIF-4005-OM,Inspire 3 Health and Fitness Tracker,99.95,,N
-LIF-4006,lifestyle,sleep,YEYO CARE,m-LIF-4006,LIF-4006-OM,Melatonin 5 mg Sleep Support Gummies - 60 ct,9.49,,N
-BAB-5001,baby,diapering,PAMPERS,m-BAB-5001,BAB-5001-OM,Swaddlers Diapers Size 2 - 84 ct,32.99,,N
-BAB-5002,baby,baby_care,AVEENO BABY,m-BAB-5002,BAB-5002-OM,Daily Moisture Baby Lotion - 18 fl oz,11.97,,N
+LIF-4004,lifestyle,home_wellness,URPOWER,m-LIF-4004,LIF-4004-OM,Essential Oil Aroma Diffuser - 300 ml,24.99,,Y
+LIF-4005,lifestyle,wellness,FITBIT,m-LIF-4005,LIF-4005-OM,Inspire 3 Health and Fitness Tracker,99.95,,Y
+LIF-4006,lifestyle,sleep,YEYO CARE,m-LIF-4006,LIF-4006-OM,Melatonin 5 mg Sleep Support Gummies - 60 ct,9.49,,Y
+BAB-5001,baby,diapering,PAMPERS,m-BAB-5001,BAB-5001-OM,Swaddlers Diapers Size 2 - 84 ct,32.99,,Y
+BAB-5002,baby,baby_care,AVEENO BABY,m-BAB-5002,BAB-5002-OM,Daily Moisture Baby Lotion - 18 fl oz,11.97,,Y
 PHA-1099,pharmacy,pain_relief,YEYO CARE,m-PHA-1099,PHA-1099-OM,Aspirin 81 mg Low Dose (discontinued),5.49,,N
