@@ -45,9 +45,9 @@ def get_agent_response(remote_app,question,user_id, session):
 if __name__ == "__main__":
 
     question_list = [
-        "Can you show me the forecast for omni_item_id 'LRDCS2603S' for '2026-02-02' for location_id 'CHI-IL-ST'?",
-        "I see a demand SURGE. Can you adjust the forecast for this omni_item_id 'LRDCS2603S', for a SURGE?",
-        "Can you show me the forecast for omni_item_id 'LRDCS2603S' for '2026-02-02' for location_id 'CHI-IL-ST' again?" ]
+        "Can you show me the forecast for omni_item_id 'PHA-1003-OM' for '2026-02-02' for location_id 'CHI-IL-ST'?",
+        "I see a demand SURGE. Can you adjust the forecast for this omni_item_id 'PHA-1003-OM', for a SURGE?",
+        "Can you show me the forecast for omni_item_id 'PHA-1003-OM' for '2026-02-02' for location_id 'CHI-IL-ST' again?" ]
     user_id = "demand-planner"
     remote_app = get_remote_app()
     session = remote_app.create_session(user_id=user_id)

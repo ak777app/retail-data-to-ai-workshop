@@ -1,36 +1,28 @@
 item_number,appliance_type,appliance_sub_type,brand,model_id,omni_item_id,description,price,product_image_gcs_uri,is_active
-LBNC15231V,refrigerator,bottom freezer,LG,m-LBNC15231V,LBNC15231V,15 cu. ft. 28 Inch Wide Bottom Freezer Refrigerator - Stainless Steel,1499,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LBNC15231V.jpg,N
-LRDCS2603S,refrigerator,bottom freezer,LG,m-LRDCS2603S,LRDCS2603S,26 cu. ft. 33 Inch Wide Bottom Freezer Refrigerator - Stainless Steel,1699,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRDCS2603S.jpg,Y
-FFPE4533UM,refrigerator,compact,FRIGIDAIRE,m-FFPE4533UM,FFPE4533UM,Frigidaire 4.5 Cu. Ft. Compact Refrigerator,238,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/FFPE4533UM.jpg,N
-FRFN2813AF,refrigerator,french door,FRIGIDAIRE,m-FRFN2813AF,FRFN2813AF,Frigidaire 29 Cu. Ft. Standard-Depth French Door Refrigerator,1398,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/FRFN2813AF.jpg,Y
-GRFN2023AF,refrigerator,french door,FRIGIDAIRE,m-GRFN2023AF,GRFN2023AF,Frigidaire Gallery 20 Cu. Ft. Standard-Depth French Door Refrigerator,1448,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/GRFN2023AF.jpg,N
-LRYKC2606,refrigerator,french door,LG,m-LRYKC2606,LRYKC2606D,26 cu. ft. Counter-Depth French Door Refrigerator - Stainless Steel,3099,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRYKC2606.jpg,N
-LRYKC2606,refrigerator,french door,LG,m-LRYKC2606,LRYKC2606S,26 cu. ft. Counter-Depth French Door Refrigerator - Stainless Steel,3099,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRYKC2606.jpg,N
-RF70F29MER,refrigerator,french door,SAMSUNG,m-RF70F29MER,RF70F29MER,Bespoke 36 in. 29 cu. ft. Standard Depth 4-Door French Door Refrigerator with Sphere Ice in Stainless Steel,2099,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RF70F29MER.jpg,Y
-WRMF3636RW,refrigerator,french door,WHIRLPOOL,m-WRMF3636RW,WRMF3636RW,36 in. 24.5 cu. ft. Standard Depth French Door Refrigerator in Fingerprint Resistant Stainless Steel,2099,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/WRMF3636RW.jpg,N
-FPFU19F8WF,refrigerator,one door,FRIGIDAIRE,m-FPFU19F8WF,FPFU19F8WF,Frigidaire Professional 19 Cu. Ft. Single-Door Freezer,3298,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/FPFU19F8WF.jpg,N
-FPRU19F8WF,refrigerator,one door,FRIGIDAIRE,m-FPRU19F8WF,FPRU19F8WF,Frigidaire Professional 19 Cu. Ft. Single-Door Refrigerator,3298,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/FPRU19F8WF.jpg,N
-RR39C7DJ5S9-EU,refrigerator,one door,SAMSUNG,m-RR39C7DJ5S9-EU,RR39C7DJ5S9-EU,Samsung - 11.4 cu. ft. Capacity Convertible Upright Freezer - Stainless Steel Look,899,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RR39C7DJ5S9-EU.jpg,N
-RZ32C76GE48-EU,refrigerator,one door,SAMSUNG,m-RZ32C76GE48-EU,RZ32C76GE48-EU,Samsung Convertible Upright Freezer/Refrigerator 11.4-cu ft Garage Ready Frost-free Upright Freezer ( Stainless Look ) ENERGY STAR Certified,899,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RZ32C76GE48-EU.jpg,N
-GRSC2352AF,refrigerator,side by side,FRIGIDAIRE,m-GRSC2352AF,GRSC2352AF,Frigidaire Gallery 26 Cu. Ft. 36 Standard-Depth Side-by-Side Refrigerator,1298,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/GRSC2352AF.jpg,N
-GRSS2652AF,refrigerator,side by side,FRIGIDAIRE,m-GRSS2652AF,GRSS2652AF,Frigidaire Gallery 26 Cu. Ft. 36 Standard-Depth Side-by-Side Refrigerator,1298,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/GRSS2652AF.jpg,Y
-LRSOS2706,refrigerator,side by side,LG,m-LRSOS2706,LRSOS2706S,32 cu. ft. Side-by-Side Refrigerator with Smooth Touch Ice Dispenser,1721,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRSOS2706.jpg,N
-LRSOS2706,refrigerator,side by side,LG,m-LRSOS2706,LRSOS2706D,31 cu. ft. Side-by-Side Refrigerator with Smooth Touch Ice Dispenser,1721,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRSOS2706.jpg,N
-LRSWS2806S,refrigerator,side by side,LG,m-LRSWS2806S,LRSWS2806S,28 cu. ft. Capacity Side-by-Side Refrigerator with External Water Dispenser,1554,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRSWS2806S.jpg,N
-LRSXC2306,refrigerator,side by side,LG,m-LRSXC2306V,LRSXC2306S,23 cu. ft. Side-by-Side Counter-Depth Refrigerator with Smooth Touch Dispenser,1649,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRSXC2306.jpg,N
-LRSXC2306,refrigerator,side by side,LG,m-LRSXC2306V,LRSXC2306V,23 cu. ft. Side-by-Side Counter-Depth Refrigerator with Smooth Touch Dispenser,1649,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRSXC2306.jpg,N
-LRSXS2706,refrigerator,side by side,LG,m-LRSXS2706,LRSXS2706W,28 cu. ft. Side-by-Side Refrigerator with Smooth Touch Ice Dispenser,1721,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRSXS2706.jpg,N
-LRSXS2706,refrigerator,side by side,LG,m-LRSXS2706,LRSXS2706V,29 cu. ft. Side-by-Side Refrigerator with Smooth Touch Ice Dispenser,1721,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRSXS2706.jpg,N
-LRSXS2706,refrigerator,side by side,LG,m-LRSXS2706,LRSXS2706B,30 cu. ft. Side-by-Side Refrigerator with Smooth Touch Ice Dispenser,1721,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRSXS2706.jpg,N
-LRSXS2706,refrigerator,side by side,LG,m-LRSXS2706,LRSXS2706S,27 cu. ft. Side-by-Side Refrigerator with Smooth Touch Ice Dispenser,1721,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/LRSXS2706.jpg,N
-RS65DG54R3S9,refrigerator,side by side,SAMSUNG,m-RS65DG54R3S9,RS65DG54R3S9-EF,Samsung Series 7 SpaceMax™ RS65DG54R3S9 American Style Smart Fridge Freezer - Refined Inox,1199,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RS65DG54R3S9.jpg,Y
-RS65DG54R3S9,refrigerator,side by side,SAMSUNG,m-RS65DG54R3S9,RS65DG54R3S9-EU,Samsung Series 7 SpaceMax™ RS65DG54R3S9 American Style Smart Fridge Freezer - Refined Inox,1199,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RS65DG54R3S9.jpg,N
-RS66DG813CS9EU,refrigerator,side by side,SAMSUNG,m-RS66DG813CS9EU,RS66DG813CS9EU,Samrung RS66 Side-by-Side In-Door Ice Maker - All-Around Cooling - 28 cu.ft.,1199,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RS66DG813CS9EU.jpg,N
-FFHT2022AS,refrigerator,top freezer,FRIGIDAIRE,m-FFHT2022AS,FFHT2022AS,Frigidaire 20 Cu. Ft. Garage Ready Top Freezer Refrigerator,798,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/FFHT2022AS.jpg,N
-FFTR2045VS,refrigerator,top freezer,FRIGIDAIRE,m-FFTR2045VS,FFTR2045VS,Frigidaire 20 Cu. Ft. Garage Ready Top Freezer Refrigerator,728,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/FFTR2045VS.jpg,N
-RT31CG5624S9,refrigerator,top freezer,SAMSUNG,m-RT31CG5624S9,RT31CG5624S9,Samsung - 18 cu. ft. Garage Ready Top Freezer Refrigerator with All-Around Cooling - Stainless Steel,899,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RT31CG5624S9.jpg,Y
-RT45KSSW1,refrigerator,top freezer,SAMSUNG,m-RT45KSSW1-EUR,RT45KSSW1-EUR,Samsung - 18 cu. ft. Garage Ready Top Freezer Refrigerator with Ice Maker - Stainless Steel,699,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RT45KSSW1.jpg,N
-RT45KSSW1,refrigerator,top freezer,SAMSUNG,m-RT45KSSW1-JUM,RT45KSSW1-JUM,Samsung - 18 cu. ft. Garage Ready Top Freezer Refrigerator with Ice Maker - Stainless Steel,699,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RT45KSSW1.jpg,N
-RT53K65x3RSL-EF,refrigerator,top freezer,SAMSUNG,m-RT53K65x3RSL-EF,RT53K65x3RSL-EF,21 cu. ft. Standard Depth Top Freezer Refrigerator with FlexZone and Ice Maker in Fingerprint-Resistant Stainless Steel,1099,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RT53K65x3RSL-EF.jpg,N
-FRWW4543AS,refrigerator,wine cellar,FRIGIDAIRE,m-FRWW4543AS,FRWW4543AS,Frigidaire 45 Bottle Two-Zone Wine Cooler,498,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/FRWW4543AS.jpg,N
-RW33EBSS1,refrigerator,wine cellar,SAMSUNG,m-RW33EBSS1-XEO,RW33EBSS1-XEO,Dual Zone 24 in. 51-Bottle Free Standing Wine Cooler in Stainless Steel,1619,gs://rscw-workshop-fridge-stage-{PROJECT_NBR}/unstructured-data/fridge_images/RW33EBSS1.jpg,N
+PHA-1001,pharmacy,pain_relief,YEYO CARE,m-PHA-1001,PHA-1001-OM,Acetaminophen 500 mg Caplets - 100 ct,8.99,,Y
+PHA-1002,pharmacy,pain_relief,ADVIL,m-PHA-1002,PHA-1002-OM,Ibuprofen 200 mg Tablets - 50 ct,11.49,,N
+PHA-1003,pharmacy,allergy,CLARITIN,m-PHA-1003,PHA-1003-OM,Loratadine 10 mg 24-Hour Allergy Relief - 30 ct,21.99,,Y
+PHA-1004,pharmacy,allergy,YEYO CARE,m-PHA-1004,PHA-1004-OM,Cetirizine 10 mg Allergy Tablets - 45 ct,14.99,,N
+PHA-1005,pharmacy,cold_flu,VICKS,m-PHA-1005,PHA-1005-OM,DayQuil & NyQuil Cold and Flu Combo Pack - 48 LiquiCaps,19.99,,N
+PHA-1006,pharmacy,cold_flu,SUDAFED,m-PHA-1006,PHA-1006-OM,Pseudoephedrine 30 mg Sinus Congestion - 24 ct (pharmacy counter),9.79,,N
+PHA-1007,pharmacy,digestive,PEPTO-BISMOL,m-PHA-1007,PHA-1007-OM,Upset Stomach Relief Liquid - 12 fl oz,7.49,,N
+PHA-1008,pharmacy,first_aid,BAND-AID,m-PHA-1008,PHA-1008-OM,Flexible Fabric Adhesive Bandages Assorted - 100 ct,9.99,,N
+PHA-1009,pharmacy,first_aid,YEYO CARE,m-PHA-1009,PHA-1009-OM,Digital Oral Thermometer with Fever Alert,12.99,,N
+PHA-1010,pharmacy,vitamins_supplements,NATURE MADE,m-PHA-1010,PHA-1010-OM,Vitamin D3 2000 IU Softgels - 220 ct,16.49,,Y
+PHA-1011,pharmacy,vitamins_supplements,EMERGEN-C,m-PHA-1011,PHA-1011-OM,Vitamin C 1000 mg Immune Support Drink Mix - 30 packets,12.79,,N
+PHA-1012,pharmacy,vitamins_supplements,YEYO CARE,m-PHA-1012,PHA-1012-OM,Daily Multivitamin for Adults - 100 tablets,10.99,,N
+PER-2001,personal_care,oral_care,CREST,m-PER-2001,PER-2001-OM,3D White Whitening Toothpaste - 2 pack,8.49,,Y
+PER-2002,personal_care,oral_care,ORAL-B,m-PER-2002,PER-2002-OM,iO Series 3 Rechargeable Electric Toothbrush,79.99,,N
+PER-2003,personal_care,hand_hygiene,YEYO CARE,m-PER-2003,PER-2003-OM,Hand Sanitizer Gel with Aloe - 8 fl oz,3.99,,N
+BEA-3001,beauty_skincare,skincare,CERAVE,m-BEA-3001,BEA-3001-OM,Daily Moisturizing Lotion - 19 fl oz,17.99,,Y
+BEA-3002,beauty_skincare,suncare,NEUTROGENA,m-BEA-3002,BEA-3002-OM,Ultra Sheer Sunscreen SPF 70 - 3 fl oz,12.49,,N
+BEA-3003,beauty_skincare,skincare,THE ORDINARY,m-BEA-3003,BEA-3003-OM,Niacinamide 10% + Zinc 1% Serum - 1 fl oz,6.99,,N
+LIF-4001,lifestyle,fitness,YEYO ACTIVE,m-LIF-4001,LIF-4001-OM,Non-Slip Yoga Mat 6 mm - Sage,29.99,,N
+LIF-4002,lifestyle,fitness,YEYO ACTIVE,m-LIF-4002,LIF-4002-OM,Resistance Bands Set - 5 levels,19.99,,N
+LIF-4003,lifestyle,wellness,HYDRO FLASK,m-LIF-4003,LIF-4003-OM,Insulated Water Bottle 32 oz - Wide Mouth,44.95,,Y
+LIF-4004,lifestyle,home_wellness,URPOWER,m-LIF-4004,LIF-4004-OM,Essential Oil Aroma Diffuser - 300 ml,24.99,,N
+LIF-4005,lifestyle,wellness,FITBIT,m-LIF-4005,LIF-4005-OM,Inspire 3 Health and Fitness Tracker,99.95,,N
+LIF-4006,lifestyle,sleep,YEYO CARE,m-LIF-4006,LIF-4006-OM,Melatonin 5 mg Sleep Support Gummies - 60 ct,9.49,,N
+BAB-5001,baby,diapering,PAMPERS,m-BAB-5001,BAB-5001-OM,Swaddlers Diapers Size 2 - 84 ct,32.99,,N
+BAB-5002,baby,baby_care,AVEENO BABY,m-BAB-5002,BAB-5002-OM,Daily Moisture Baby Lotion - 18 fl oz,11.97,,N
+PHA-1099,pharmacy,pain_relief,YEYO CARE,m-PHA-1099,PHA-1099-OM,Aspirin 81 mg Low Dose (discontinued),5.49,,N
