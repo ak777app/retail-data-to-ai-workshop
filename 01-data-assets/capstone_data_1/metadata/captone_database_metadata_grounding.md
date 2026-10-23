@@ -261,6 +261,7 @@ Metadata for dataset: capstone_ds
 | product_master             | brand                           | Brand name of the product.                                                      |
 | product_master             | description                     | Textual description of the product.                                             |
 | product_master             | is_active                       | Indicator of whether the product is currently active or not.                    |
+| product_master             | channels                        | Pipe-separated sales channels: in_store, online, marketplace.                   |
 | product_master             | item_number                     | Unique identifier for each product item.                                        |
 | product_master             | appliance_type                  | Product category, e.g. pharmacy.                                                |
 | product_master             | appliance_sub_type              | Product sub-category, e.g. pain_relief.                                         |

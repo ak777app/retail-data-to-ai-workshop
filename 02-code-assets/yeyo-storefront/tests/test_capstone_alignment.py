@@ -33,9 +33,9 @@ def _rows(table):
 
 
 def test_capstone_product_master_matches_storefront_catalog():
-    capstone = {(r["item_number"], r["omni_item_id"], r["is_active"]) for r in _rows("product_master")}
+    capstone = {(r["item_number"], r["omni_item_id"], r["is_active"], r["channels"]) for r in _rows("product_master")}
     with SAMPLE_PRODUCTS.open(newline="") as f:
-        storefront = {(r["item_number"], r["omni_item_id"], r["is_active"]) for r in csv.DictReader(f)}
+        storefront = {(r["item_number"], r["omni_item_id"], r["is_active"], r["channels"]) for r in csv.DictReader(f)}
     assert capstone == storefront
 
 
