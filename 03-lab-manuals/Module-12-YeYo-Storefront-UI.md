@@ -54,7 +54,7 @@ Code: [`02-code-assets/yeyo-storefront`](../02-code-assets/yeyo-storefront)
 
 ```
 cd ~
-git clone https://github.com/GoogleCloudPlatform/retail-data-to-ai-workshop.git   # skip if already cloned
+git clone https://github.com/ak777app/retail-data-to-ai-workshop.git   # skip if already cloned
 cd ~/retail-data-to-ai-workshop/02-code-assets/yeyo-storefront
 
 cp .env.example .env

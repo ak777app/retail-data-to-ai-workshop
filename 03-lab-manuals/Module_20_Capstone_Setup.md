@@ -306,7 +306,7 @@ gcloud compute routers nats create capstone-internet-egress-nat \
 
 ## 8. Clone the repo if you have not already
 ```
-git clone https://github.com/GoogleCloudPlatform/retail-data-to-ai-workshop.git
+git clone https://github.com/ak777app/retail-data-to-ai-workshop.git
 ```
 
 ## 9. Create buckets 
