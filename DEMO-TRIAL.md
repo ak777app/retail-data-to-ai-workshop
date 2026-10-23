@@ -42,7 +42,7 @@ BQ_INSTORE_ORDERS_TABLE="instore_orders"
 1. Create or select a project on the trial account, then open Cloud Shell.
 2. Clone the repo and set the variables above:
    ```
-   git clone https://github.com/GoogleCloudPlatform/retail-data-to-ai-workshop.git
+   git clone https://github.com/ak777app/retail-data-to-ai-workshop.git
    ```
 3. Enable the minimum APIs for steps 1-2:
    ```
