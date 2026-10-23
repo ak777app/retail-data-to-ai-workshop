@@ -1,7 +1,7 @@
 # Module 04: BigQuery Data Engineering Agent for Reporting
 
 ## Motivation recap:
-Shoonya, our hypothetical retail chain understands that to stay competitive, adopt cutting edge/innovative technologies and accelerate speed to production, they need to use the latest and greatest LLM powered product features. Shoonya's architecture board has approved the Data Engineering Agent for use not only for Data Warehouse code generation, but also reporting. The IT leadership would like data engineers to get well versed with the BigQuery Data Engineering Agent (DEA) for report generation.
+YeYo, our hypothetical retail chain understands that to stay competitive, adopt cutting edge/innovative technologies and accelerate speed to production, they need to use the latest and greatest LLM powered product features. YeYo's architecture board has approved the Data Engineering Agent for use not only for Data Warehouse code generation, but also reporting. The IT leadership would like data engineers to get well versed with the BigQuery Data Engineering Agent (DEA) for report generation.
 
 <hr>
 

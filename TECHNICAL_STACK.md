@@ -29,6 +29,8 @@ The following is the technical stack showcased in this repository content.
 | 23. | Serverless compute* | Cloud Run |
 | 24. | Secret store* | Secret Manager |
 | 25. | Provisioning automation* | Terraform |
+| 26. | Real-time event streaming into BigQuery (no pipeline code) | Cloud `Pub/Sub` with `BigQuery subscriptions` |
+| 27. | Mock omni-channel storefront UI (demo starting point) | `Streamlit` on Cloud Shell, optionally `Cloud Run` |
 
 `*` - Coming soon
 

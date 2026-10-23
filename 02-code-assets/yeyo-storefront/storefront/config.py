@@ -1,0 +1,120 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Runtime configuration, read from environment variables / a local .env file.
+
+Variable names match Module-11 (streaming) and Module-12 (storefront) lab manuals.
+"""
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+from dotenv import load_dotenv
+
+APP_DIR = Path(__file__).resolve().parent.parent
+SAMPLE_DATA_DIR = APP_DIR / "sample_data"
+
+CHANNEL_IN_STORE = "in_store"
+CHANNEL_ONLINE = "online"
+CHANNEL_MARKETPLACE = "marketplace"
+CHANNELS = (CHANNEL_IN_STORE, CHANNEL_ONLINE, CHANNEL_MARKETPLACE)
+
+CATALOG_SOURCES = ("sample", "bigquery", "auto")
+PUBLISH_MODES = ("auto", "pubsub", "bigquery", "local")
+
+
+def _env(name: str, default: str) -> str:
+    value = os.getenv(name)
+    return value.strip() if value and value.strip() else default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(_env(name, str(default)))
+    except ValueError:
+        return default
+
+
+@dataclass(frozen=True)
+class Config:
+    project_id: str
+    location: str
+    bq_dataset: str
+    pubsub_topic: str
+    online_orders_table: str
+    marketplace_orders_table: str
+    instore_orders_table: str
+    product_master_table: str
+    marketplace_sellers_table: str
+    marketplace_listings_table: str
+    catalog_source: str
+    publish_mode: str
+    local_events_file: str
+    spike_default_orders: int
+    spike_max_orders: int
+    spike_default_duration_seconds: int
+    spike_max_duration_seconds: int
+
+    @property
+    def topic_path(self) -> str:
+        return f"projects/{self.project_id}/topics/{self.pubsub_topic}"
+
+    def fq_table(self, table: str) -> str:
+        return f"{self.project_id}.{self.bq_dataset}.{table}"
+
+    def orders_table_for_channel(self, channel: str) -> str:
+        tables = {
+            CHANNEL_ONLINE: self.online_orders_table,
+            CHANNEL_MARKETPLACE: self.marketplace_orders_table,
+            CHANNEL_IN_STORE: self.instore_orders_table,
+        }
+        if channel not in tables:
+            raise ValueError(f"Unknown channel: {channel!r}")
+        return self.fq_table(tables[channel])
+
+
+def load_config(env_file: Optional[os.PathLike] = None) -> Config:
+    load_dotenv(env_file or APP_DIR / ".env", override=False)
+
+    catalog_source = _env("CATALOG_SOURCE", "sample").lower()
+    if catalog_source not in CATALOG_SOURCES:
+        raise ValueError(f"CATALOG_SOURCE must be one of {CATALOG_SOURCES}, got {catalog_source!r}")
+    publish_mode = _env("PUBLISH_MODE", "auto").lower()
+    if publish_mode not in PUBLISH_MODES:
+        raise ValueError(f"PUBLISH_MODE must be one of {PUBLISH_MODES}, got {publish_mode!r}")
+
+    spike_max_orders = max(1, _env_int("SPIKE_MAX_ORDERS", 2000))
+    spike_max_duration = max(0, _env_int("SPIKE_MAX_DURATION_SECONDS", 600))
+
+    return Config(
+        project_id=_env("PROJECT_ID", os.getenv("GOOGLE_CLOUD_PROJECT", "")),
+        location=_env("LOCATION", "us-central1"),
+        bq_dataset=_env("BQ_DATASET", "capstone_ds"),
+        pubsub_topic=_env("PUBSUB_TOPIC", "yeyo-orders"),
+        online_orders_table=_env("BQ_ONLINE_ORDERS_TABLE", "online_orders"),
+        marketplace_orders_table=_env("BQ_MARKETPLACE_ORDERS_TABLE", "marketplace_orders"),
+        instore_orders_table=_env("BQ_INSTORE_ORDERS_TABLE", "instore_orders"),
+        product_master_table=_env("BQ_PRODUCT_MASTER_TABLE", "product_master"),
+        marketplace_sellers_table=_env("BQ_MARKETPLACE_SELLERS_TABLE", "marketplace_seller_master"),
+        marketplace_listings_table=_env("BQ_MARKETPLACE_LISTINGS_TABLE", "marketplace_listings"),
+        catalog_source=catalog_source,
+        publish_mode=publish_mode,
+        local_events_file=_env("LOCAL_EVENTS_FILE", str(APP_DIR / "local_events.jsonl")),
+        spike_default_orders=min(max(1, _env_int("SPIKE_DEFAULT_ORDERS", 200)), spike_max_orders),
+        spike_max_orders=spike_max_orders,
+        spike_default_duration_seconds=min(max(0, _env_int("SPIKE_DEFAULT_DURATION_SECONDS", 60)), spike_max_duration),
+        spike_max_duration_seconds=spike_max_duration,
+    )

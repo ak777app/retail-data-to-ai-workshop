@@ -1,6 +1,6 @@
 # Module 22: [Capstone] Create a Demand Planner Agent 
 
-In this tutorial we will create a demand planner agent, and deploy it to Agent Engine. If you recall, we are to demonstrate to Shoonya executive leadership autonomous, multi-agent solutions on Google Cloud. As part of the agent developer continuum, we will test the agent with `adk web` locally, deploy and test on `agent engine` playground. We will skip Gemini Enterprise registration as the focus is merely a functionally adequate UI for our agents, and ADK and Agent Engine playground are sufficient.<br>
+In this tutorial we will create a demand planner agent, and deploy it to Agent Engine. If you recall, we are to demonstrate to YeYo executive leadership autonomous, multi-agent solutions on Google Cloud. As part of the agent developer continuum, we will test the agent with `adk web` locally, deploy and test on `agent engine` playground. We will skip Gemini Enterprise registration as the focus is merely a functionally adequate UI for our agents, and ADK and Agent Engine playground are sufficient.<br>
 
 The demand planner agent can do the following:
 1. Can run on-demand forecasting (TimesFM in BigQuery)

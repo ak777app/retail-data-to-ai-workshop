@@ -4,8 +4,8 @@
 
 ## Motivation:
 
-To recap, the workshop addresses the needs of Shoonya, a hypothetical retailer that wants to leverage Google Cloud for its Data & AI estate. The workshop gently introduces all the products, services and features Shoonya needs to build a robust AI ready data estate as individual learning lab modules.
-This specific module covers provisioning of GCP services needed by Shoonya to first prepare data for AI - it deliberately does not include Terraform scripts for a more immersive and step by step learning experience. It is not all inclusive, subsequent modules include instructions for incremental provisioning and permissioning.
+To recap, the workshop addresses the needs of YeYo, a hypothetical retailer that wants to leverage Google Cloud for its Data & AI estate. The workshop gently introduces all the products, services and features YeYo needs to build a robust AI ready data estate as individual learning lab modules.
+This specific module covers provisioning of GCP services needed by YeYo to first prepare data for AI - it deliberately does not include Terraform scripts for a more immersive and step by step learning experience. It is not all inclusive, subsequent modules include instructions for incremental provisioning and permissioning.
 
 <hr>
 

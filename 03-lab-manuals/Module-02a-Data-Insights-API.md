@@ -4,7 +4,7 @@
 <hr>
 
 ## Motivation:
-Shoonya plans to use a number of LLM powered BigQuery features and the architects at Shoonya realize that agentic grounding is critical for accuracy. They have read about `Data Insights` and want the data engineers to get demystified about Data Insights including understand the value proposition and get hands on and learn to implement Data Insights on sample retail data (from Module 01), in their sandbox GCP environment. 
+YeYo plans to use a number of LLM powered BigQuery features and the architects at YeYo realize that agentic grounding is critical for accuracy. They have read about `Data Insights` and want the data engineers to get demystified about Data Insights including understand the value proposition and get hands on and learn to implement Data Insights on sample retail data (from Module 01), in their sandbox GCP environment. 
 
 ## Module scope:
 

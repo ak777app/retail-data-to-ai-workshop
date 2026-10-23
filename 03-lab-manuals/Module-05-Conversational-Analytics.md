@@ -1,7 +1,7 @@
 # Module 05: Conversational Analytics in BigQuery
 
 ## Motivation recap:
-Shoonya, our hypothetical retail chain understands that to stay competitive, adopt cutting edge/innovative technologies and accelerate speed to production, they need to use the latest and greatest LLM powered product features. Shoonya's architecture board has approved the BigQuery Conversational Analytics feature for use via the BigQuery UI. The IT leadership would like data analysts, engineers and scientists to get well versed with the feature and explore replacing their bespoke data QnA agent with the BigQuery feature.
+YeYo, our hypothetical retail chain understands that to stay competitive, adopt cutting edge/innovative technologies and accelerate speed to production, they need to use the latest and greatest LLM powered product features. YeYo's architecture board has approved the BigQuery Conversational Analytics feature for use via the BigQuery UI. The IT leadership would like data analysts, engineers and scientists to get well versed with the feature and explore replacing their bespoke data QnA agent with the BigQuery feature.
 
 
 <hr>

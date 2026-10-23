@@ -1,0 +1,5 @@
+.env
+.venv/
+local_events.jsonl
+tests/
+__pycache__/

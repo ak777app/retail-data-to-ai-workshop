@@ -17,6 +17,19 @@ The objective is to demystify Google Cloud products and services for data and ag
 
 <hr>
 
+## Start here: the YeYo end-to-end demo
+
+The workshop follows **YeYo**, a fictitious pharmacy and lifestyle retailer that sells in stores, online and through the YeYo Marketplace. The demo starts at the **YeYo storefront UI**:
+
+1. **Storefront** ([Module 12](03-lab-manuals/Module-12-YeYo-Storefront-UI.md)): a shopper places an online or marketplace order, or the presenter clicks **Simulate order spike**.
+2. **Streaming** ([Module 11](03-lab-manuals/Module-11-Realtime-Streaming-To-BigQuery.md)): each order event goes to the Pub/Sub topic `yeyo-orders`, and BigQuery subscriptions land it in `capstone_ds.online_orders` / `capstone_ds.marketplace_orders`.
+3. **Data warehousing, Iceberg/BigLake, governance and BI** (Modules 2-10, 20).
+4. **Agents act on it** (Modules 21-25).
+
+A trial-account runbook with consistent `PROJECT_ID` / `LOCATION` / topic / dataset / table names is in [DEMO-TRIAL.md](DEMO-TRIAL.md).
+
+<hr>
+
 ##  3. Disclaimer
 1. This repository and its contents are not an official Google Product.
 2. The code in this repository ***is intended for educational purposes***. While it can be used to quickstart development by enterprises, due diligence and hardening of the code is required for deployment to higher environments
@@ -91,6 +104,8 @@ These learning modules give you a gentle introduction to Google Cloud's portfoli
 |   8. | [**Generate content with SQL with Generative AI functions in BigQuery**](03-lab-manuals/Module-08-GenAI-Functions-In-BQ.md) <br>Using Generative AI functions in BigQuery - we will generate product descriptions and user manuals. We will learn to do keyword extraction, play with knobs for te same, then do sentiment analysis of product reviews   | 
 |   9. | [**Embedding generation and vector search in BigQuery with just SQL**](03-lab-manuals/Module-09-Embedding-Gen-And-Vector-Search-In-BQ.md) <br> We will generate product images based on descriptions. We will then generate embeddings for the product description and images and learn to do text-to-text search as well as text-to-image search - all from within BigQuery with SQL  | 
 | 10a. | [**Apache Iceberg Lakehouse in BigQuery with managed Iceberg tables**](https://github.com/anagha-google/retail-supply-chain-workshop/blob/main/03-lab-manuals/Module-10a-Apache-Iceberg-Lakehouse.md) <br> We will learn to create an Apache Iceberg lakehouse with BigQuey managed Iceberg tables, and learn to run DML operations on Iceberg with BigQuery SQL. We will also query these tables with Apache Spark on Dataproc Servereless to fetch the freshest data.  | 
+|  11. | [**Real-time order streaming into BigQuery**](03-lab-manuals/Module-11-Realtime-Streaming-To-BigQuery.md) <br> Pub/Sub topic `yeyo-orders` with channel-filtered BigQuery subscriptions landing online, marketplace and in-store orders in `capstone_ds` - no pipeline code  |
+|  12. | [**YeYo storefront UI - mock orders and order spike**](03-lab-manuals/Module-12-YeYo-Storefront-UI.md) <br> Streamlit storefront (Cloud Shell / optional Cloud Run) that publishes online and marketplace orders, and simulates an order spike, into the streaming pipeline. Step 1 of the [end-to-end demo](DEMO-TRIAL.md)  |
 
 ### 9A.2. Learning Modules - getting started
 

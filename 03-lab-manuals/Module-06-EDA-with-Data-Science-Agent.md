@@ -1,7 +1,7 @@
 # Module 06: Exploratory Data Analysis with Data Science Agent
 
 ## Motivation:
-Shoonya, our hypothetical retail company has recently had to downsize their IT and data science staffing; Consequently, the workload for the remaining data analysts, ML engineers and data scientists has increased. Shoonya would like to embrace any out of the box capabilities that can accelerate speed to delivery for their data science staff.
+YeYo, our hypothetical retail company has recently had to downsize their IT and data science staffing; Consequently, the workload for the remaining data analysts, ML engineers and data scientists has increased. YeYo would like to embrace any out of the box capabilities that can accelerate speed to delivery for their data science staff.
 
 <hr>
 

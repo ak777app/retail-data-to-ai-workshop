@@ -1,7 +1,7 @@
 # Module 08: Generative AI functions in BigQuery
 
 ## Motivation:
-Shoonya, our hypothetical retail company would like to take advantage of Generative AI functions in BigQuery. One area where they could clearly use help is encriching their product descriptions for search optimization. They currently use a third party company for product catalog enrichment and would like to explore the art of the possible with BigQuery.
+YeYo, our hypothetical retail company would like to take advantage of Generative AI functions in BigQuery. One area where they could clearly use help is encriching their product descriptions for search optimization. They currently use a third party company for product catalog enrichment and would like to explore the art of the possible with BigQuery.
 
 <hr>
 
