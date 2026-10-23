@@ -184,10 +184,10 @@ The storefront ([`storefront/events.py`](../02-code-assets/yeyo-storefront/store
 | `order_ts` | when the order was placed (spike orders are spread across the burst window) |
 | `channel` | `in_store`, `online` or `marketplace`; also sent as a message attribute |
 | `customer_id`, `location_id` | `location_id` is the store for in-store orders and the warehouse for online orders; it is null for marketplace orders |
-| `fulfillment_type` | `IN_STORE`, `SHIP_FROM_WAREHOUSE`, `SELLER_FULFILLED` or `YEYO_FULFILLED` |
+| `fulfillment_type` | `IN_STORE`, `SHIP_FROM_WAREHOUSE`, `SELLER_FULFILLED` or `YEYO_FULFILLED`. A marketplace order is `YEYO_FULFILLED` only if every line is; each line also carries its own `fulfillment_type` |
 | `marketplace_seller_id` | seller for single-seller marketplace orders |
 | `order_status`, `payment_type`, `currency`, `item_count`, `order_total` | header values |
-| `line_items[]` | `line_number`, `item_number`, `omni_item_id`, `description`, `category`, `quantity`, `unit_price`, `line_item_total`, `marketplace_seller_id`, `marketplace_listing_id` |
+| `line_items[]` | `line_number`, `item_number`, `omni_item_id`, `description`, `category`, `quantity`, `unit_price`, `line_item_total`, `marketplace_seller_id`, `marketplace_listing_id`, `fulfillment_type` |
 
 `omni_item_id` is the same omni-channel key used by `product_master`, so streamed orders join to the catalog and the capstone data.
 

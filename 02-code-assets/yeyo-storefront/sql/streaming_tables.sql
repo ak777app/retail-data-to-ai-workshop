@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS capstone_ds.online_orders (
     unit_price NUMERIC,
     line_item_total NUMERIC,
     marketplace_seller_id STRING,
-    marketplace_listing_id STRING
+    marketplace_listing_id STRING,
+    fulfillment_type STRING
   >>,
   subscription_name STRING,
   message_id STRING,
@@ -91,5 +92,6 @@ SELECT
   li.unit_price,
   li.line_item_total,
   li.marketplace_seller_id,
-  li.marketplace_listing_id
+  li.marketplace_listing_id,
+  li.fulfillment_type AS line_fulfillment_type
 FROM capstone_ds.vw_omni_channel_orders AS o, UNNEST(o.line_items) AS li;

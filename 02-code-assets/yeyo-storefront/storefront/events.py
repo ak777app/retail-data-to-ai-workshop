@@ -103,6 +103,13 @@ def build_order_event(
         total += line_total
         if listing:
             sellers.add(listing.seller_id)
+            seller = catalog.sellers.get(listing.seller_id)
+            line_fulfillment = (FULFILLMENT_YEYO if seller and seller.fulfillment_type == FULFILLMENT_YEYO
+                                else FULFILLMENT_SELLER)
+        elif channel == CHANNEL_IN_STORE:
+            line_fulfillment = FULFILLMENT_IN_STORE
+        else:
+            line_fulfillment = FULFILLMENT_SHIP_FROM_WAREHOUSE
         line_items.append({
             "line_number": n,
             "item_number": line.product.item_number,
@@ -114,6 +121,7 @@ def build_order_event(
             "line_item_total": _money(line_total),
             "marketplace_seller_id": listing.seller_id if listing else None,
             "marketplace_listing_id": listing.listing_id if listing else None,
+            "fulfillment_type": line_fulfillment,
         })
 
     if channel == CHANNEL_IN_STORE:
@@ -124,11 +132,9 @@ def build_order_event(
         location_id = location_id or DEFAULT_ONLINE_FULFILLMENT_LOCATION
         fulfillment_type = FULFILLMENT_SHIP_FROM_WAREHOUSE
     else:
-        yeyo_fulfilled = all(
-            catalog.sellers[s].fulfillment_type == FULFILLMENT_YEYO for s in sellers if s in catalog.sellers
-        )
-        fulfillment_type = FULFILLMENT_YEYO if yeyo_fulfilled else FULFILLMENT_SELLER
-        location_id = DEFAULT_ONLINE_FULFILLMENT_LOCATION if yeyo_fulfilled else None
+        line_types = {li["fulfillment_type"] for li in line_items}
+        fulfillment_type = FULFILLMENT_YEYO if line_types == {FULFILLMENT_YEYO} else FULFILLMENT_SELLER
+        location_id = DEFAULT_ONLINE_FULFILLMENT_LOCATION if FULFILLMENT_YEYO in line_types else None
 
     return {
         "event_id": str(uuid.uuid4()),

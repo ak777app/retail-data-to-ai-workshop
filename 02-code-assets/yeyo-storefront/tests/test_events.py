@@ -84,3 +84,13 @@ def test_random_orders_are_online_or_marketplace(catalog):
         assert e["event_source"] == "spike_simulator"
         for line in e["line_items"]:
             assert (line["marketplace_seller_id"] is not None) == (e["channel"] == "marketplace")
+
+
+def test_mixed_fulfillment_marketplace_order_keeps_line_fulfillment(catalog):
+    picks = {}
+    for p in catalog.products_for_channel("marketplace"):
+        for listing in catalog.listings_for(p.omni_item_id):
+            picks.setdefault(catalog.sellers[listing.seller_id].fulfillment_type, CartLine(p, 1, listing))
+    ev = build_order_event(catalog, [picks["YEYO_FULFILLED"], picks["SELLER_FULFILLED"]], channel="marketplace")
+    assert [li["fulfillment_type"] for li in ev["line_items"]] == ["YEYO_FULFILLED", "SELLER_FULFILLED"]
+    assert ev["fulfillment_type"] == "SELLER_FULFILLED" and ev["location_id"] == "WHE-IL-WH"
