@@ -12,7 +12,7 @@
 10. What is the total spend by customer ID 0b15496cbc114f48fa133a72bb4ab7b1?
 11. Can you show me a few products?
 12. What are the categories of products available?
-13. How many active refrigerator SKUs do we currently carry?
+13. How many active pharmacy SKUs do we currently carry?
 14. Do we sell any products in the wine cellar category?
 13. Show me sales, and inventory for product omni item id FRWW4543AS
 14. Are there comparable active products we carry?

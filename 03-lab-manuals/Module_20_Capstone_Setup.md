@@ -405,7 +405,7 @@ Expect this to take 30 minutes to complete.
 <br><br>
 
 
-The data consists of refrigerator products and associated retail and supply chain synthetic data. 
+The data consists of YeYo pharmacy and lifestyle products (the same catalog and `omni_item_id`s as the storefront in Module 12) and associated retail and supply chain synthetic data. 
 
 
 agent_activity_log:This table tracks actions performed on items. It records the type of action taken and provides additional details about each action. The table also captures the date and time when each action occurred. It identifies the agent responsible for performing each action.

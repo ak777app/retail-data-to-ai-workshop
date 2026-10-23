@@ -2,9 +2,9 @@
 
 1. I want to see demand signals received
 2. I want to see recent forecast activity logged
-3. Show me earliest 3 day forecast available for the omni_item_id 'LRDCS2603S' in location_id 'CHI-IL-ST'. Include only these columns - location_id, omni_item_id, forecast_timestamp, forecast_value
-4. Great. Based on demand signal logged, I want to adjust the forecast for omni_item_id LRDCS2603S in anticipation of the SURGE. Can you adjust the forecast for adjustment type of SURGE?
-5. Can you show me the adjusted forecast for 'LRDCS2603S' for '2026-02-02' for location_id 'CHI-IL-ST'?
+3. Show me earliest 3 day forecast available for the omni_item_id 'PHA-1003-OM' in location_id 'CHI-IL-ST'. Include only these columns - location_id, omni_item_id, forecast_timestamp, forecast_value
+4. Great. Based on demand signal logged, I want to adjust the forecast for omni_item_id PHA-1003-OM in anticipation of the SURGE. Can you adjust the forecast for adjustment type of SURGE?
+5. Can you show me the adjusted forecast for 'PHA-1003-OM' for '2026-02-02' for location_id 'CHI-IL-ST'?
 6. Can you show me the forecast_override_configs?
 7. What is the forecast range? How many days ahead is forecast available?
 8. Great. Can you show me the forecast activity log?

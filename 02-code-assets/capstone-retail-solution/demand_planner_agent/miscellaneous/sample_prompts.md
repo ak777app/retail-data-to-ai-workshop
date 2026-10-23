@@ -3,7 +3,7 @@
 1. Good morning, its another beautiful day. Lets get started. Show me any demand signals we have received.
 2. I want to see if any other agents have acted on this signal. Show me the agent activity log please.
 3. Lets generate the forecast for all products.
-4. Show me the demand forecast for 'LRDCS2603S' for Feb 15, 2026, for the store at location 'CHI-IL-ST'
+4. Show me the demand forecast for 'PHA-1003-OM' for Feb 15, 2026, for the store at location 'CHI-IL-ST'
 5. I want to adjust the forecast for this product based on the signal received. What inputs do you need from me?
 6. Yes, its a SURGE. Please proceed with the adjustment.
 7. Can you show me the agent activity log please?

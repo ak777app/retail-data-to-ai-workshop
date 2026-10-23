@@ -22,7 +22,7 @@ Metadata for dataset: capstone_ds
 | pos_transactions           | This table stores records of sales transactions. It provides a detailed view of each transaction. The table captures information about the transaction's status and payment details. It links transactions to specific locations and customers. This data facilitates analysis of sales trends and customer purchasing patterns.                                                           |
 | procedure_error_log        | This table records errors encountered during the execution of stored procedures. It serves as a log for tracking and diagnosing issues within database procedures. The table facilitates the identification of problematic procedures and the analysis of error patterns. It supports debugging efforts and aids in improving the reliability of database operations.                      |
 | product_docs_ref_data      | This table serves as a central repository for product documentation reference data. It links products to their corresponding documentation files. The table facilitates the association of products with specific documents. This allows users to easily locate relevant documentation. The table supports organization and retrieval of product-related documents.                        |
-| product_master             | This table consolidates key characteristics of appliance products. It serves as a master list of products, providing a central source of truth. The table includes identifiers, categories, and brand information. It also contains pricing and status details for each product.                                                                                                           |
+| product_master             | This table consolidates key characteristics of pharmacy and lifestyle products. It serves as a master list of products, providing a central source of truth. The table includes identifiers, categories, and brand information. It also contains pricing and status details for each product.                                                                                                           |
 | product_suppliers          | This table consolidates information about products and their respective suppliers. It enables the comparison of different suppliers for the same product. The table facilitates analysis of the product sourcing process. It offers insights into supply chain management. This data supports optimization of sourcing decisions.                                                          |
 | stock_allocation_plan      | This table stores stock allocation plans across different locations. It tracks the planned quantity of items to be stocked at each location. The table maintains a history of allocation plan revisions. It identifies the most current allocation plan. This data supports inventory management and supply chain planning.                                                                |
 | stock_master               | This table maintains item stock information. It tracks the quantity of items in stock. The table supports inventory management processes. It is used for monitoring stock levels. It helps in determining item reorder points.                                                                                                                                                             |
@@ -258,13 +258,14 @@ Metadata for dataset: capstone_ds
 | product_docs_ref_data      | pdf_name                        | Name of the product documentation PDF file.                                     |
 | product_master             | price                           | Current price of the product.                                                   |
 | product_master             | product_image_gcs_uri           | Google Cloud Storage URI for the product image.                                 |
-| product_master             | brand                           | Brand name of the appliance.                                                    |
+| product_master             | brand                           | Brand name of the product.                                                      |
 | product_master             | description                     | Textual description of the product.                                             |
 | product_master             | is_active                       | Indicator of whether the product is currently active or not.                    |
+| product_master             | channels                        | Pipe-separated sales channels: in_store, online, marketplace.                   |
 | product_master             | item_number                     | Unique identifier for each product item.                                        |
-| product_master             | appliance_type                  | General category of the appliance.                                              |
-| product_master             | appliance_sub_type              | More specific category of the appliance.                                        |
-| product_master             | model_id                        | Unique identifier for the appliance model.                                      |
+| product_master             | appliance_type                  | Product category, e.g. pharmacy.                                                |
+| product_master             | appliance_sub_type              | Product sub-category, e.g. pain_relief.                                         |
+| product_master             | model_id                        | Unique identifier for the product model.                                        |
 | product_master             | omni_item_id                    | Identifier used across all systems for the product.                             |
 | product_suppliers          | supplier_type                   | Category or classification of the supplier.                                     |
 | product_suppliers          | lead_days_to_delivery           | Number of days required for delivery from the supplier.                         |
@@ -355,7 +356,7 @@ Metadata for dataset: capstone_ds
 | vw_aggr_sales_by_item      | item_number                     | Unique identifier for the item sold.                                            |
 | vw_aggr_sales_by_item      | omni_item_id                    | Unique identifier for the item across all channels.                             |
 | vw_avg_rate_of_sale        | brand                           | Brand name of the item.                                                         |
-| vw_avg_rate_of_sale        | appliance_type                  | Type of appliance the item belongs to.                                          |
+| vw_avg_rate_of_sale        | appliance_type                  | Product category the item belongs to.                                           |
 | vw_avg_rate_of_sale        | rate_of_sale                    | Average rate of sale for the item.                                              |
 | vw_avg_rate_of_sale        | total_units_period              | Total number of units sold during a specific period.                            |
 | vw_avg_rate_of_sale        | active_store_count              | Number of stores actively selling the item.                                     |
@@ -396,7 +397,7 @@ Metadata for dataset: capstone_ds
 | vw_sales_history           | city                            | City where the transaction occurred.                                            |
 | vw_sales_history           | transaction_status              | Status of the transaction (e.g., completed, refunded).                          |
 | vw_sales_history           | item_number                     | Unique identifier for the item sold in the transaction.                         |
-| vw_sales_history           | appliance_sub_type              | Sub-type classification of the appliance item.                                  |
+| vw_sales_history           | appliance_sub_type              | Sub-category classification of the item.                                         |
 | vw_sales_history           | payment_total_dollar            | Total amount paid for the transaction in dollars.                               |
 | vw_sales_history           | quantity                        | Number of units of the item sold in the transaction.                            |
 | vw_sales_history           | description                     | Description of the item sold.                                                   |

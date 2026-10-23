@@ -12,18 +12,18 @@
 10. What is the total spend by customer ID 00f8ac751ae484a82adb20b42ad1aca7?
 11. Can you show me a few products?
 12. What are the categories of products available?
-13. How many active refrigerator SKUs do we currently carry?
+13. How many active pharmacy SKUs do we currently carry?
 14. Do we sell any products in the wine cellar category?
-13. Show me sales, and inventory for product omni item id LRDCS2603S
+13. Show me sales, and inventory for product omni item id PHA-1003-OM
 14. Are there comparable active products we carry?
 15. Show me fast moving products
 16. What are the top 5 best-selling products by revenue?
 17. What is the average price of products in the 'wine cellar' category?
-18. Show me inventory for product omni item id LRDCS2603S
+18. Show me inventory for product omni item id PHA-1003-OM
 19. What are products where we are short of inventory?
-20. Can you show me the inventory forecast for product omni item id LRDCS2603S?
+20. Can you show me the inventory forecast for product omni item id PHA-1003-OM?
 21. Which products have the highest inventory levels right now?
-22. Who is the supplier for product omni item id LRDCS2603S?
+22. Who is the supplier for product omni item id PHA-1003-OM?
 23. What are other products supplied by the same supplier?
 24. Which supplier's products account for the most sales?
 25. Which city has the most customers?
@@ -32,6 +32,6 @@
 28. What is the month-over-month growth rate of sales revenue for the 'french door' category?
 29. Is there a correlation between the lead time of a product from its supplier and its sales volume? Show the top 10 products with the longest lead times and their corresponding sales.
 31. What is the average order value for each payment type?
-32. Can you show me purchase order history for product omni item id LRDCS2603S?
-33. Can you show me stock movement history for product omni item id LRDCS2603S?
-34. Can you show me stock transfer history for product omni item id LRDCS2603S?
+32. Can you show me purchase order history for product omni item id PHA-1003-OM?
+33. Can you show me stock movement history for product omni item id PHA-1003-OM?
+34. Can you show me stock transfer history for product omni item id PHA-1003-OM?
