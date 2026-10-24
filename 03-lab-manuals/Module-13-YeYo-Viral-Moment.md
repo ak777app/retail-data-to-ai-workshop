@@ -24,7 +24,8 @@ The listing keeps saying `IN_STOCK` while the partner's feed runs out; the view,
 | `storefront/viral.py` | Viral simulator: rising traffic curve for one listing, clickstream + order events |
 | `storefront/ops.py` | Ops tab queries, alert insert and the Demo links panel |
 | `spark/partner_stock_sync.py` | Spark job that appends partner stock snapshots to the Iceberg table |
-| `sql/viral_moment.sql` | `clickstream_events`, `vw_oversell_risk`, `oversell_alerts` |
+| `storefront/marketing.py` | Marketing tab queries on `vw_marketing_viral` and the next-best-action rule |
+| `sql/viral_moment.sql` | `clickstream_events`, `vw_oversell_risk`, `vw_marketing_viral`, `oversell_alerts` |
 
 <hr>
 
@@ -136,6 +137,15 @@ Set `LAKEHOUSE_BUCKET=$BUCKET` (and optionally `AGENT_URL` to your `adk web` or 
 - **Demo links**: Pub/Sub topics, BigQuery tables, the data quality scan, a Looker Studio report, lineage, the Knowledge Catalog entry for the Iceberg table, Spark batches and the Cloud Storage folder.
 - **Latest Pub/Sub events landed in BigQuery**: the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, to show the chart is backed by real data.
 
+**Marketing: viral moment** tab (same run, read from `vw_marketing_viral`, refreshed every 5 seconds):
+
+- KPIs: sessions, share from TikTok, conversion, revenue and revenue at risk (waitlist units × listing price);
+- a headline action: scale spend while partner stock is OK, or pause ads to the listing, geo-target "collect in store today" and move budget to the own-brand substitute once it is at risk;
+- funnel (page views, carts, purchases, waitlist) and sessions by traffic source;
+- demand by postcode with the YeYo store in the same ZIP3 area that has stock (`location_master`, `stock_master_location`) and its next best action.
+
+The simulator also sends a GA4-style `purchase` clickstream event with each order, so traffic source and postcode are attributed per session.
+
 **Looker Studio (optional, alongside the Ops tab).** Demo links > **Looker Studio: new report on the oversell view** opens a new report (Linking API) already connected to `vw_oversell_risk`. Then:
 
 1. Add a scorecard for `partner_units`, a scorecard for `projected_units` and a table with `listing_id`, `risk_level`, `units_ordered_since_snapshot` and `partner_snapshot_ts`. Give `risk_level` conditional formatting: red when it equals `OVERSOLD`.
@@ -169,7 +179,7 @@ Ask the data analyst agent (Module 21): *"Where can we still fulfil BEA-3001-OM?
 | 1:10 | Oversell caught | Red alert + gauge; DQ scan link |
 | 1:40 | CDO: can we trust it? | Lineage of `oversell_alerts`: clickstream + orders + Spark Iceberg feed |
 | 2:10 | Head of Engineering: open formats | Spark batch ➜ Iceberg files in your bucket ➜ same table in BigQuery |
-| 2:40 | Agent acts | "Where can we still fulfil…?" ➜ branches; campaign card, waitlist |
+| 2:40 | Agent acts | "Where can we still fulfil…?" ➜ branches; Marketing tab: revenue at risk, pause ads, collect in store by postcode |
 | 3:30 | Next-day contrast | Live vs. next-day chart; query in place day one, move only what must be real time |
 | 4:30 | Close | "Same viral moment, same product. The only difference is whether your data arrives in minutes or tomorrow, and that's an architecture decision." |
 

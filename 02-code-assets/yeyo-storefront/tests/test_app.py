@@ -67,6 +67,9 @@ def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
     assert any("OVERSELL" in e.value for e in at.error)
     lines = events_file.read_text().splitlines()
     assert sum('"page_view"' in line for line in lines) == 200
+    assert [t.label for t in at.tabs][3] == "Marketing: viral moment"
+    assert any(m.label == "Revenue at risk (waitlist)" for m in at.metric)
+    assert any("Pause ads" in e.value for e in at.error)
 
 
 def test_ops_reset_demo_clears_run_locally(monkeypatch, tmp_path):
