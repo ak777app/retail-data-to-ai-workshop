@@ -295,4 +295,21 @@ def test_store_stock_reset_sql_replaces_todays_rows(config):
     from storefront.ops import store_stock_reset_sql
     sql = store_stock_reset_sql(config)
     assert "DELETE FROM" in sql and "INSERT INTO" in sql and "UNNEST(@locations)" in sql
-    assert config.stock_location_table in sql
+    assert config.stock_location_table in sql and "@units[OFFSET(i)]" in sql
+
+
+def test_reset_store_stock_sends_per_store_units(config):
+    class FakeBq:
+        def query(self, sql, job_config=None):
+            self.params = {p.name: p.values for p in job_config.query_parameters if hasattr(p, "values")}
+            return self
+
+        def result(self):
+            return []
+
+    from storefront.ops import reset_store_stock
+    bq = FakeBq()
+    reset_store_stock(config, "BEA-3001", "BEA-3001-OM", ["A", "B"], {"A": 0, "B": 12}, client=bq)
+    assert bq.params == {"units": [0, 12], "locations": ["A", "B"]}
+    reset_store_stock(config, "BEA-3001", "BEA-3001-OM", ["A", "B"], 400, client=bq)
+    assert bq.params["units"] == [400, 400]

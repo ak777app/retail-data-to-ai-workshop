@@ -559,6 +559,14 @@ with ops_tab:
                 ss.finale_shown = job.viral_id
                 ss.open_dialog = "finale"
                 st.rerun(scope="app")
+            if (stores_out or not job.is_running) and snap["store_units_total"] \
+                    and config.publish_mode != "local" and ss.get("store_stock_synced") != job.viral_id:
+                ss.store_stock_synced = job.viral_id
+                try:
+                    reset_store_stock(config, job.product.item_number, job.product.omni_item_id,
+                                      list(snap["store_left"]), snap["store_left"])
+                except Exception as exc:
+                    st.warning(f"Store stock not written to BigQuery: {exc.__class__.__name__}: {str(exc)[:200]}")
             if (not job.is_running and v_running) or (polling and not v_running and job.seconds_since_end >= 60):
                 st.rerun(scope="app")
 
