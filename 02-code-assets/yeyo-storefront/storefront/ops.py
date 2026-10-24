@@ -16,7 +16,7 @@
 
 import time
 import uuid
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 from urllib.parse import quote, urlencode
 
 from .config import Config
@@ -141,6 +141,34 @@ FROM `{config.fq_table(config.stock_location_table)}`
 WHERE omni_item_id = @omni_item_id
 QUALIFY ROW_NUMBER() OVER (PARTITION BY location_id ORDER BY stock_date DESC) = 1
 ORDER BY quantity_on_hand DESC"""
+
+
+def store_stock_reset_sql(config: Config) -> str:
+    """Replaces today's stock rows for the hero SKU in the given stores (latest row per store wins)."""
+    table = config.fq_table(config.stock_location_table)
+    return f"""
+DELETE FROM `{table}`
+WHERE omni_item_id = @omni_item_id AND stock_date = CURRENT_DATE() AND location_id IN UNNEST(@locations);
+INSERT INTO `{table}` (stock_date, item_number, omni_item_id, location_id, quantity_on_hand)
+SELECT CURRENT_DATE(), @item_number, @omni_item_id, location_id, @units[OFFSET(i)]
+FROM UNNEST(@locations) AS location_id WITH OFFSET i;"""
+
+
+def reset_store_stock(config: Config, item_number: str, omni_item_id: str, locations: List[str],
+                      units: Union[int, Dict[str, int]], client=None) -> None:
+    """Writes the same units to every store, or per-store units from a {location_id: units} mapping."""
+    from google.cloud import bigquery
+
+    per_store = [int(units[loc] if isinstance(units, dict) else units) for loc in locations]
+
+    client = client or bigquery.Client(project=config.project_id or None, location=config.location)
+    job_config = bigquery.QueryJobConfig(query_parameters=[
+        bigquery.ScalarQueryParameter("item_number", "STRING", item_number),
+        bigquery.ScalarQueryParameter("omni_item_id", "STRING", omni_item_id),
+        bigquery.ArrayQueryParameter("units", "INT64", per_store),
+        bigquery.ArrayQueryParameter("locations", "STRING", list(locations)),
+    ])
+    client.query(store_stock_reset_sql(config), job_config=job_config).result()
 
 
 def run_query(config: Config, sql: str, params: Dict[str, str], client=None) -> List[Dict]:

@@ -42,11 +42,13 @@ from storefront.ops import (
     oversell_sql,
     per_minute_sql,
     record_alert_sql,
+    reset_store_stock,
     risk_level,
     run_query,
     store_stock_sql,
 )
 from storefront.ops import TERMINAL_BATCH_STATES, batch_state, submit_restock
+from storefront import agent as data_agent
 from storefront.viral import ViralConfig, ViralJob, viral_listing
 
 CHANNEL_LABELS = {
@@ -154,7 +156,10 @@ def _store_name(location_id: str) -> str:
 
 
 def _stores_with_stock() -> list:
-    """YeYo stores holding the sold-out SKU (BigQuery stock_master_location; all stores in local mode)."""
+    """YeYo stores holding the sold-out SKU: the viral run's store stock, else BigQuery, else all stores."""
+    job = ss.get("viral_job")
+    if job is not None and job.config.store_stock:
+        return [(loc, left) for loc, left in job.snapshot()["store_left"].items() if left > 0]
     rows = [r for r in (ss.ops_bq.get("stores") or []) if r["location_id"].endswith("-ST") and r["quantity_on_hand"] > 0]
     return [(r["location_id"], int(r["quantity_on_hand"])) for r in rows] or [(s.location_id, None)
                                                                                 for s in catalog.stores()]
@@ -211,7 +216,8 @@ st.title("YeYo")
 st.caption("Everyday pharmacy, wellness and lifestyle - in-store, online and on the YeYo Marketplace.")
 
 OPS_TAB = "Ops: viral moment"
-shop_tab, ops_tab, marketing_tab = st.tabs(["Shop", OPS_TAB, "Marketing: viral moment"], key="nav",
+shop_tab, ops_tab, marketing_tab, agent_tab = st.tabs(["Shop", OPS_TAB, "Marketing: viral moment",
+                                                       "Ask the data agent"], key="nav",
                                            on_change="rerun")
 # Coming back to the Ops tab while the spike is paused resumes it (no button needed on stage).
 _nav, _prev_nav = ss.get("nav"), ss.get("prev_nav")
@@ -244,6 +250,9 @@ with shop_tab:
                     st.markdown(f"### {_money(p.price)}")
                     st.warning("Sold out online and on the Marketplace. Click & collect from a YeYo store only.")
                     stock = dict(_stores_with_stock())
+                    if not stock:
+                        st.error("Sold out in every YeYo store too.")
+                        continue
                     st.selectbox("Collect at", list(stock), key=f"collect_{p.omni_item_id}",
                                  format_func=lambda i: _store_name(i) + (f" ({stock[i]} in stock)" if stock[i] else ""))
                     q, b = st.columns([1, 1])
@@ -350,9 +359,32 @@ def _bids_table(phase: str, omni_item_id: str) -> None:
     st.dataframe(rows, hide_index=True, width="stretch")
 
 
-def _reset_demo(units: int) -> None:
-    """Clear the viral run and restock the partner with a fresh Spark-written Iceberg snapshot."""
+def _phase(snap: dict) -> str:
+    return story_phase(True, snap["pause_done"], snap["projected_units"],
+                       snap["store_units_left"] if snap["store_units_total"] else None)
+
+
+def _finish_card(snap: dict) -> None:
+    partner, stores = snap["units_ordered"], snap["store_units_sold"]
+    total = partner + stores
+    with st.container(border=True):
+        st.markdown(f"**Units sold: {total:,}** = {partner:,} on the Marketplace + **{stores:,} click & collect** "
+                    f"from London stores ({snap['store_units_left']:,} store units left)")
+        if partner:
+            st.markdown(f"Without the lakehouse: the same spike sells {partner:,} units, then empty shelves online "
+                        f"while the stores sit on stock. With it: **{total / partner:.1f}× the units**.")
+
+
+def _reset_demo(units: int, store_units: int) -> None:
+    """Clear the viral run, restock the London stores and the partner (fresh Spark-written Iceberg snapshot)."""
     _clear_run()
+    if config.publish_mode != "local" and hero_listing is not None:
+        hero_product = catalog.product(hero_listing.omni_item_id)
+        try:
+            reset_store_stock(config, hero_product.item_number, hero_product.omni_item_id,
+                              [s.location_id for s in catalog.stores()], store_units)
+        except Exception as exc:
+            st.warning(f"Store stock not reset in BigQuery: {exc.__class__.__name__}: {str(exc)[:200]}")
     if config.publish_mode == "local" or not config.lakehouse_bucket:
         ss.restock = {"state": "SKIPPED", "units": units}
         return
@@ -378,7 +410,7 @@ with ops_tab:
         vjob: ViralJob = ss.viral_job
         v_running = bool(vjob and vjob.is_running)
         with st.expander("Demo settings"):
-            c1, c2, c3, c4 = st.columns(4)
+            c1, c2, c3, c4, c5 = st.columns(5)
             v_units = c1.number_input("Partner units on hand (last feed)", min_value=1, max_value=100000,
                                       value=config.viral_partner_units, step=50, disabled=v_running,
                                       key="viral_units")
@@ -389,11 +421,14 @@ with ops_tab:
                                disabled=v_running, key="viral_secs")
             v_pause = c4.number_input("Pause at partner units left (0 = no pause)", min_value=0, max_value=100000,
                                       value=config.viral_pause_units, step=50, disabled=v_running, key="viral_pause")
+            v_store = c5.number_input("Units in each London store", min_value=0, max_value=100000,
+                                      value=config.viral_store_units, step=50, disabled=v_running, key="viral_store")
         restocking = bool(ss.restock and ss.restock["state"] not in TERMINAL_BATCH_STATES + ("SKIPPED",))
         b1, b2, b3, _ = st.columns([1, 1, 1, 2])
         if b1.button("Go viral", type="primary", disabled=v_running or restocking):
             vcfg = ViralConfig(hero_listing.listing_id, int(v_views), float(v_secs), int(v_units),
-                               pause_at_units=int(v_pause) or None).validate(
+                               pause_at_units=int(v_pause) or None,
+                               store_stock=tuple((s.location_id, int(v_store)) for s in catalog.stores())).validate(
                 max_duration_seconds=config.spike_max_duration_seconds)
             _clear_run()
             ss.viral_job = ViralJob(catalog, publisher, vcfg).start()
@@ -404,7 +439,7 @@ with ops_tab:
             vjob.resume()
         if b3.button("Reset demo", disabled=v_running or restocking, key="viral_reset",
                      help="Clears the run and restocks the partner: a Spark batch writes a fresh Iceberg snapshot."):
-            _reset_demo(int(v_units))
+            _reset_demo(int(v_units), int(v_store))
             st.rerun()
 
         @st.fragment(run_every=10.0 if restocking else None)
@@ -447,17 +482,20 @@ with ops_tab:
             partner = bq_risk["partner_units"] if bq_risk else snap["partner_units"]
             level = bq_risk["risk_level"] if bq_risk else risk_level(projected, snap["cart_units"])
             ordered = bq_risk["units_ordered_since_snapshot"] if bq_risk else snap["units_ordered"]
-            phase = story_phase(True, snap["pause_done"], snap["projected_units"])
+            phase = _phase(snap)
 
             if snap["paused"]:
                 st.warning("Spike paused for the talk track. Show the Marketing tab; coming back here resumes it.",
                            icon="⏸️")
-            m = st.columns(5)
+            m = st.columns(6)
             m[0].metric("Shoppers on the page (last 60s)", f"{snap['live_shoppers']:,}")
             m[1].metric("Add-to-carts", f"{snap['add_to_cart']:,}")
-            m[2].metric("Marketplace orders", f"{snap['orders']:,}")
+            m[2].metric("Orders", f"{snap['orders']:,}")
             m[3].metric("Partner units left", f"{max(projected, 0):,}")
-            m[4].metric("Waitlist", f"{snap['waitlist']:,}")
+            m[4].metric("London store units left", f"{snap['store_units_left']:,}")
+            m[5].metric("Waitlist", f"{snap['waitlist']:,}")
+            if snap["projected_units"] <= 0 and snap["store_units_total"]:
+                _finish_card(snap)
 
             if level == "OK":
                 st.success(f"Partner stock OK: {max(projected, 0):,} of {partner:,} units left.")
@@ -514,6 +552,22 @@ with ops_tab:
                 ss.hero_sold_out = snap["omni_item_id"]
                 ss.open_dialog = "sold_out"
                 st.rerun(scope="app")
+            stores_out = snap["store_units_total"] and snap["store_units_left"] <= 0
+            if snap["projected_units"] <= 0 and stores_out \
+                    and ss.get("finale_shown") != job.viral_id and ss.get("sold_out_shown") == job.viral_id \
+                    and ss.open_dialog is None:
+                ss.finale_shown = job.viral_id
+                ss.open_dialog = "finale"
+                st.rerun(scope="app")
+            if (stores_out or not job.is_running) and snap["store_units_total"] \
+                    and config.publish_mode != "local" \
+                    and ss.get("store_stock_synced") != (job.viral_id, snap["store_left"]):
+                try:
+                    reset_store_stock(config, job.product.item_number, job.product.omni_item_id,
+                                      list(snap["store_left"]), snap["store_left"])
+                    ss.store_stock_synced = (job.viral_id, snap["store_left"])
+                except Exception as exc:
+                    st.warning(f"Store stock not written to BigQuery: {exc.__class__.__name__}: {str(exc)[:200]}")
             if (not job.is_running and v_running) or (polling and not v_running and job.seconds_since_end >= 60):
                 st.rerun(scope="app")
 
@@ -603,7 +657,7 @@ with marketing_tab:
                               "sessions": [float(r["sessions"]) for r in rows["referrer"]]},
                              x="referrer", y="sessions", horizontal=True)
 
-        _bids_table(story_phase(True, snap["pause_done"], snap["projected_units"]), snap["omni_item_id"])
+        _bids_table(_phase(snap), snap["omni_item_id"])
 
         st.markdown("**Demand by postcode and next best action**")
         st.dataframe(
@@ -619,6 +673,57 @@ with marketing_tab:
                 st.caption(f"BigQuery {key.split('_')[0]}: {mk[key]}")
 
     marketing_live()
+
+# ---------------------------------------------------------------- data agent
+AGENT_QUESTIONS = (
+    "Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand from stock_master_location "
+    "for the latest stock_date.",
+    "How many units of BEA-3001-OM were sold by channel today, and how many were click & collect by store?",
+    "Which products have the most marketplace orders in the last hour?",
+)
+
+
+def _ask_agent(question: str) -> None:
+    chat = ss.setdefault("agent_chat", [])
+    chat.append({"role": "user", "text": question})
+    try:
+        if not ss.get("agent_session"):
+            ss.agent_user = data_agent.new_user_id()
+            ss.agent_session = data_agent.create_session(config.data_agent_url, config.data_agent_app, ss.agent_user)
+        answer, steps = data_agent.ask(config.data_agent_url, config.data_agent_app, ss.agent_user,
+                                       ss.agent_session, question)
+        chat.append({"role": "assistant", "text": answer or "(no answer)", "steps": steps})
+    except Exception as exc:
+        chat.append({"role": "assistant", "text": f"Agent call failed: {exc.__class__.__name__}: {str(exc)[:300]}"})
+
+
+with agent_tab:
+    st.markdown("### Ask the data analyst agent")
+    st.caption(f"ADK agent `{config.data_agent_app}`: Gemini writes the SQL, the agent runs it in BigQuery "
+               f"(`{config.bq_dataset}`) and answers with the query it used.")
+    if not config.data_agent_url:
+        st.info("Set `DATA_AGENT_URL` to the agent's ADK API server: `adk api_server` locally "
+                "(http://localhost:8000) or the `yeyo-data-agent` Cloud Run URL (Module 13).")
+    else:
+        cols = st.columns(len(AGENT_QUESTIONS))
+        for i, q in enumerate(AGENT_QUESTIONS):
+            if cols[i].button(q, key=f"agent_q{i}", width="stretch"):
+                with st.spinner("The agent is writing and running SQL..."):
+                    _ask_agent(q)
+        for msg in ss.get("agent_chat", []):
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["text"])
+                for step in msg.get("steps") or []:
+                    with st.expander(f"Tool: {step['tool']}"):
+                        st.json({k: step.get(k) for k in ("args", "result")}, expanded=False)
+        question = st.chat_input("Ask about orders, stock, customers...", key="agent_input")
+        if question:
+            with st.spinner("The agent is writing and running SQL..."):
+                _ask_agent(question)
+            st.rerun()
+        if ss.get("agent_chat") and st.button("New conversation", key="agent_reset"):
+            ss.agent_chat, ss.agent_session = [], None
+            st.rerun()
 
 # ---------------------------------------------------------------- story pop-ups
 def _close_dialog() -> None:
@@ -636,9 +741,10 @@ def _surge_dialog() -> None:
         f"**{snap['add_to_cart']:,}** have added it to their carts. {snap['seller_name']} has only "
         f"**{left:,} units** left" + (f", gone in about **{left / rate / 60:.0f} minutes** at this rate." if rate else ".")
     )
-    st.markdown("A retailer that sees this in tomorrow morning's batch report has already missed it. "
-                "Marketing can react now: high-bid Google Shopping and social ads capture the search traffic "
-                "around the video before competitors do.")
+    st.markdown("A retailer who sees this report a day later has already missed it. Instead, a modern retailer "
+                "with the GCP open lakehouse and BigQuery capitalises on this trend dynamically. Their marketing "
+                "team reacts now: high-bid Google Shopping and social ads capture the search traffic around the "
+                "video before competitors do.")
     if st.button("Deploy high-bid Google Shopping + social ads", type="primary"):
         _close_dialog()
         st.rerun()
@@ -648,10 +754,31 @@ def _surge_dialog() -> None:
 def _sold_out_dialog() -> None:
     snap = ss.viral_job.snapshot()
     st.markdown(f"### {snap['description']} can now only be collected in store")
-    st.markdown(f"{snap['seller_name']}'s {snap['partner_units']:,} units are gone and "
-                f"{snap['waitlist']:,} shoppers are on the waitlist. Marketplace ads are paused; shoppers are sent "
-                "to click & collect from YeYo stores that still have stock:")
-    st.markdown("\n".join(f"- {_store_name(s)}" + (f": {q} units" if q else "") for s, q in _stores_with_stock()))
+    st.markdown(f"{snap['seller_name']}'s {snap['partner_units']:,} units are gone. Without the lakehouse the "
+                "spike would end here, with the London stores still holding stock. Instead, Marketplace ads are "
+                "paused and local inventory ads send shoppers to click & collect from YeYo stores:")
+    st.markdown("\n".join(f"- {_store_name(s)}" + (f": {q:,} units" if q else "") for s, q in _stores_with_stock()))
+    sub = _substitute_product(snap["omni_item_id"])
+    if sub is not None:
+        st.markdown(f"Marketing also launches high-bid ads for our private label **{sub.description}** to capture "
+                    "the rest of the search and social traffic around the video.")
+    if st.button("OK", type="primary"):
+        _close_dialog()
+        st.rerun()
+
+
+@st.dialog("The finish: store stock sold out too", width="large", on_dismiss=_close_dialog)
+def _finale_dialog() -> None:
+    snap = ss.viral_job.snapshot()
+    partner, stores = snap["units_ordered"], snap["store_units_sold"]
+    st.markdown(f"### {partner + stores:,} units sold instead of {partner:,}")
+    st.markdown(f"- **Without the lakehouse:** {partner:,} units on the Marketplace, then empty shelves online. "
+                "The trend shows up in tomorrow's report; store stock is never used.")
+    st.markdown(f"- **With BigQuery and the open lakehouse:** {partner:,} on the Marketplace plus **{stores:,} click & "
+                "collect** from London stores, footfall driven by local inventory ads"
+                + (f": **{(partner + stores) / partner:.1f}× the units**." if partner else "."))
+    st.markdown("Same viral moment, same product. The only difference is whether your data arrives in minutes "
+                "or tomorrow, and that's an architecture decision.")
     if st.button("OK", type="primary"):
         _close_dialog()
         st.rerun()
@@ -661,3 +788,5 @@ if ss.viral_job is not None and ss.open_dialog == "surge":
     _surge_dialog()
 elif ss.viral_job is not None and ss.open_dialog == "sold_out":
     _sold_out_dialog()
+elif ss.viral_job is not None and ss.open_dialog == "finale":
+    _finale_dialog()

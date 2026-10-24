@@ -2,3 +2,4 @@ streamlit>=1.66
 google-cloud-pubsub>=2.21
 google-cloud-bigquery>=3.20
 python-dotenv>=1.0
+requests>=2.31

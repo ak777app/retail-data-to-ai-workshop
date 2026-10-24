@@ -28,10 +28,10 @@ import uuid
 from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 from .catalog import Catalog, Listing
-from .config import CHANNEL_MARKETPLACE
+from .config import CHANNEL_MARKETPLACE, CHANNEL_ONLINE
 from .events import (
     EVENT_SOURCE_VIRAL,
     EVENT_TYPE_ADD_TO_CART,
@@ -63,6 +63,7 @@ class ViralConfig:
     order_rate: float = 0.45
     seed: Optional[int] = None
     pause_at_units: Optional[int] = None
+    store_stock: Tuple[Tuple[str, int], ...] = ()
 
     def validate(self, max_page_views: int = 20000, max_duration_seconds: int = 600) -> "ViralConfig":
         if not 1 <= self.page_views <= max_page_views:
@@ -71,9 +72,11 @@ class ViralConfig:
             raise ValueError(f"duration_seconds must be between 0 and {max_duration_seconds}")
         if self.partner_units < 1:
             raise ValueError("partner_units must be >= 1")
+        stores = tuple((loc, max(0, int(units))) for loc, units in self.store_stock)
         pause = self.pause_at_units if self.pause_at_units and self.pause_at_units < self.partner_units else None
         return replace(self, cart_rate=min(max(self.cart_rate, 0.0), 1.0),
-                       order_rate=min(max(self.order_rate, 0.0), 1.0), pause_at_units=pause)
+                       order_rate=min(max(self.order_rate, 0.0), 1.0), pause_at_units=pause,
+                       store_stock=stores)
 
 
 def viral_listing(catalog: Catalog, listing_id: str) -> Listing:
@@ -152,6 +155,8 @@ class ViralJob:
         self.status = STATUS_PENDING
         self.counts: Counter = Counter()
         self.units_ordered = 0
+        self.store_left: Dict[str, int] = dict(config.store_stock)
+        self.store_units_sold = 0
         self.cart_units = 0
         self.published = 0
         self.failed = 0
@@ -196,6 +201,10 @@ class ViralJob:
     def projected_units(self) -> int:
         return self.config.partner_units - self.units_ordered
 
+    @property
+    def store_units_left(self) -> int:
+        return sum(self.store_left.values())
+
     # ------------------------------------------------------------ generation
     def _session_events(self, ts: datetime) -> List[Dict]:
         """One shopper landing on the page: page view, maybe cart, maybe order/waitlist."""
@@ -209,6 +218,8 @@ class ViralJob:
         if rng.random() >= cfg.cart_rate:
             return events
         qty = 1 if rng.random() < 0.85 else 2
+        if self.projected_units <= 0 and self.store_units_left > 0:
+            return events + self._click_and_collect_events(ts, qty, customer, common)
         if self.projected_units <= 0:
             events.append(build_clickstream_event(self.catalog, self.listing, EVENT_TYPE_WAITLIST_JOIN,
                                                   quantity=qty, **common))
@@ -224,6 +235,25 @@ class ViralJob:
             events.append(build_clickstream_event(self.catalog, self.listing, EVENT_TYPE_PURCHASE,
                                                   quantity=qty, **common))
             self.units_ordered += qty
+        return events
+
+    def _click_and_collect_events(self, ts: datetime, qty: int, customer: Optional[str], common: Dict) -> List[Dict]:
+        """Partner sold out: ads send the shopper to collect from a YeYo store that still has stock."""
+        rng = self._rng
+        events = [build_clickstream_event(self.catalog, self.listing, EVENT_TYPE_ADD_TO_CART, quantity=qty, **common)]
+        self.cart_units += qty
+        if rng.random() >= self.config.order_rate:
+            return events
+        store = rng.choice([loc for loc, left in self.store_left.items() if left > 0])
+        qty = min(qty, self.store_left[store])
+        events.append(build_order_event(
+            self.catalog, [CartLine(self.product, qty)], channel=CHANNEL_ONLINE, customer_id=customer,
+            location_id=store, event_source=EVENT_SOURCE_VIRAL, order_ts=ts, spike_id=self.viral_id,
+            click_and_collect=True,
+        ))
+        events.append(build_clickstream_event(self.catalog, self.listing, EVENT_TYPE_PURCHASE, quantity=qty, **common))
+        self.store_left[store] -= qty
+        self.store_units_sold += qty
         return events
 
     def _record(self, events: List[Dict], elapsed: float) -> None:
@@ -292,8 +322,13 @@ class ViralJob:
             except Exception as exc:
                 self.failed += 1
                 if event["event_type"] == EVENT_TYPE_ORDER_PLACED and not isinstance(exc, FuturesTimeout):
+                    units = sum(int(li["quantity"]) for li in event["line_items"])
                     with self._lock:
-                        self.units_ordered -= sum(int(li["quantity"]) for li in event["line_items"])
+                        if event["channel"] == CHANNEL_ONLINE and event.get("location_id") in self.store_left:
+                            self.store_left[event["location_id"]] += units
+                            self.store_units_sold -= units
+                        else:
+                            self.units_ordered -= units
                 if len(self.errors) < 5:
                     self.errors.append(f"{exc.__class__.__name__}: {exc}"[:300])
 
@@ -329,6 +364,11 @@ class ViralJob:
                 "units_ordered": self.units_ordered,
                 "partner_units": self.config.partner_units,
                 "projected_units": self.projected_units,
+                "store_units_total": sum(units for _, units in self.config.store_stock),
+                "store_units_left": self.store_units_left,
+                "store_left": dict(self.store_left),
+                "store_units_sold": self.store_units_sold,
+                "units_sold_total": self.units_ordered + self.store_units_sold,
                 "published": self.published,
                 "failed": self.failed,
                 "errors": list(self.errors),
