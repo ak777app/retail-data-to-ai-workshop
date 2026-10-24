@@ -135,6 +135,8 @@ Set `LAKEHOUSE_BUCKET=$BUCKET` (and optionally `AGENT_URL` to your `adk web` or 
 - live vs. next-day batch report for the same orders;
 - **Demo links**: Pub/Sub topics, BigQuery tables, the data quality scan, lineage, the Knowledge Catalog entry for the Iceberg table, Spark batches and the Cloud Storage folder.
 
+Lineage: open `vw_oversell_risk` > **Lineage**. It shows `clickstream_events`, `marketplace_orders` and the Spark-written Iceberg table `partner_stock` feeding the view. Lineage shows up a few minutes after the view is created, so build it well before the demo.
+
 Then run the scan (`gcloud dataplex datascans run yeyo-oversell-dq --location=$LOCATION`) to show the rule failing on the oversold listing.
 
 ## 6. Agent
