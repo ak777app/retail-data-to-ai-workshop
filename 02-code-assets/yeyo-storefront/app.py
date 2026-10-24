@@ -446,6 +446,7 @@ with ops_tab:
             projected = bq_risk["projected_units"] if bq_risk else snap["projected_units"]
             partner = bq_risk["partner_units"] if bq_risk else snap["partner_units"]
             level = bq_risk["risk_level"] if bq_risk else risk_level(projected, snap["cart_units"])
+            ordered = bq_risk["units_ordered_since_snapshot"] if bq_risk else snap["units_ordered"]
             phase = story_phase(True, snap["pause_done"], snap["projected_units"])
 
             if snap["paused"]:
@@ -464,7 +465,7 @@ with ops_tab:
                 st.error(
                     f"OVERSELL {'RISK' if level == 'AT_RISK' else 'CAUGHT'}: listing {snap['listing_id']} says "
                     f"IN STOCK, but {snap['seller_name']}'s feed shows {partner:,} units and "
-                    f"{snap['units_ordered']:,} have already been ordered ({max(projected, 0):,} left).",
+                    f"{ordered:,} have already been ordered ({max(projected, 0):,} left).",
                     icon="🚨",
                 )
             st.progress(max(min(projected / partner, 1.0), 0.0) if partner else 0.0,
