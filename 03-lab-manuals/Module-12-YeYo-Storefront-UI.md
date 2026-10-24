@@ -215,7 +215,7 @@ gcloud run deploy yeyo-storefront \
   --set-env-vars PROJECT_ID=$PROJECT_ID,LOCATION=$LOCATION,BQ_DATASET=capstone_ds,PUBSUB_TOPIC=yeyo-orders,CATALOG_SOURCE=auto,PUBLISH_MODE=auto
 
 # Open it privately from your laptop's terminal (gcloud CLI + `gcloud components install cloud-run-proxy`), then http://localhost:8080
-gcloud run services proxy yeyo-storefront --region $LOCATION --port 8080
+gcloud run services proxy yeyo-storefront --region us-central1 --project <PROJECT_ID> --port 8080
 ```
 
 Notes:
