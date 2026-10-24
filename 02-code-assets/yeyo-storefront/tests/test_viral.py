@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import re
+from types import SimpleNamespace
 from pathlib import Path
 
-from storefront.ops import demo_links, group_links, risk_level
+from storefront.catalog import SAMPLE_DATA_DIR, _read_csv, load_bigquery_catalog
+from storefront.ops import demo_links, group_links, restock_batch, risk_level, submit_restock
 from storefront.publisher import BigQueryPublisher, PubSubPublisher, event_attributes, event_to_row
 from storefront.viral import ViralConfig, ViralJob, build_clickstream_event, viral_listing
 from test_publisher_and_spike import FakeBigQueryClient, FakePubSubClient
@@ -85,10 +87,10 @@ def test_clickstream_schema_matches_viral_sql(catalog):
     assert set(event_to_row(ev)) == cols
 
 
-def test_risk_level():
-    assert risk_level(600, 600) == "OK"
-    assert risk_level(100, 600) == "AT_RISK"
-    assert risk_level(0, 600) == "OVERSOLD"
+def test_risk_level_matches_view_rule():
+    assert risk_level(100, 50) == "OK"
+    assert risk_level(100, 150) == "AT_RISK"
+    assert risk_level(0, 0) == "OVERSOLD"
 
 
 def test_demo_links_use_config(config, monkeypatch):
@@ -104,3 +106,66 @@ def test_demo_links_use_config(config, monkeypatch):
 def test_no_alloydb_dependency():
     sources = list((ROOT / "storefront").glob("*.py")) + [ROOT / "app.py", ROOT / "requirements.txt"]
     assert not any("alloydb" in p.read_text().lower() for p in sources)
+
+
+class _Future:
+    def __init__(self, exc=None):
+        self._exc = exc
+
+    def result(self, timeout=None):
+        if self._exc:
+            raise self._exc
+        return "ok"
+
+
+class _FailOrdersPublisher:
+    def publish_many(self, events):
+        return [_Future(RuntimeError("boom") if e["event_type"] == "order_placed" else None) for e in events]
+
+    def flush(self):
+        pass
+
+
+def test_failed_orders_do_not_consume_partner_stock(catalog):
+    job = _run(catalog, _FailOrdersPublisher())
+    snap = job.snapshot()
+    assert snap["orders"] > 0 and job.failed == snap["orders"]
+    assert snap["units_ordered"] == 0 and snap["waitlist"] == 0
+
+
+def test_bigquery_catalog_keeps_bundled_and_synthesized_listings(config):
+    rows = _read_csv(SAMPLE_DATA_DIR / "product_master.csv")
+    extra = {k: v.replace("BEA-3001", "BEA-9999") for k, v in next(r for r in rows if r["item_number"] == "BEA-3001").items()}
+
+    class Client:
+        def query(self, sql):
+            if "product_master" in sql:
+                return SimpleNamespace(result=lambda: rows + [extra])
+            raise RuntimeError("not found")
+
+    cat = load_bigquery_catalog(config, client=Client())
+    ids = {(l.listing_id, l.omni_item_id) for l in cat.listings}
+    assert ("LST-0017", "BEA-3001-OM") in ids
+    assert any(omni == "BEA-9999-OM" for _, omni in ids)
+
+
+def test_restock_batch_and_submit(config):
+    cfg = config.__class__(**{**config.__dict__, "lakehouse_bucket": "b1"})
+    batch_id, body = restock_batch(cfg, 600, batch_id="glowlab-restock-1")
+    py = body["pysparkBatch"]
+    assert py["mainPythonFileUri"] == "gs://b1/spark/partner_stock_sync.py"
+    assert py["args"][:2] == ["--units", "600"] and len(py["jarFileUris"]) == 2
+    props = body["runtimeConfig"]["properties"]
+    assert props["spark.sql.catalog.yeyo_lake.warehouse"] == "bl://projects/test-project/catalogs/yeyo_lake"
+    assert "environmentConfig" not in body
+
+    calls = []
+
+    class Session:
+        def post(self, url, params, json, timeout):
+            calls.append((url, params, json))
+            return SimpleNamespace(raise_for_status=lambda: None)
+
+    name = submit_restock(cfg, 600, session=Session())
+    assert calls[0][0].endswith(f"/projects/test-project/locations/{cfg.location}/batches")
+    assert name.endswith(calls[0][1]["batchId"])

@@ -142,6 +142,7 @@ class ViralJob:
         self.status = STATUS_PENDING
         self.counts: Counter = Counter()
         self.units_ordered = 0
+        self.cart_units = 0
         self.published = 0
         self.failed = 0
         self.errors: List[str] = []
@@ -169,6 +170,10 @@ class ViralJob:
         return self.status in (STATUS_PENDING, STATUS_RUNNING)
 
     @property
+    def seconds_since_end(self) -> float:
+        return float("inf") if self._ended_at is None else self._clock() - self._ended_at
+
+    @property
     def projected_units(self) -> int:
         return self.config.partner_units - self.units_ordered
 
@@ -190,6 +195,7 @@ class ViralJob:
             return events
         events.append(build_clickstream_event(self.catalog, self.listing, EVENT_TYPE_ADD_TO_CART,
                                               quantity=qty, **common))
+        self.cart_units += qty
         if rng.random() < cfg.order_rate:
             events.append(build_order_event(
                 self.catalog, [CartLine(self.product, qty, self.listing)], channel=CHANNEL_MARKETPLACE,
@@ -231,12 +237,15 @@ class ViralJob:
             self._ended_at = self._clock()
 
     def _publish(self, batch: List[Dict]) -> None:
-        for future in self.publisher.publish_many(batch):
+        for event, future in zip(batch, self.publisher.publish_many(batch)):
             try:
                 future.result(timeout=60)
                 self.published += 1
             except Exception as exc:
                 self.failed += 1
+                if event["event_type"] == EVENT_TYPE_ORDER_PLACED:
+                    with self._lock:
+                        self.units_ordered -= sum(int(li["quantity"]) for li in event["line_items"])
                 if len(self.errors) < 5:
                     self.errors.append(f"{exc.__class__.__name__}: {exc}"[:300])
 
@@ -258,6 +267,7 @@ class ViralJob:
                 "description": self.product.description,
                 "seller_name": self.catalog.sellers[self.listing.seller_id].seller_name,
                 "page_views": self.counts[EVENT_TYPE_PAGE_VIEW],
+                "cart_units": self.cart_units,
                 "add_to_cart": self.counts[EVENT_TYPE_ADD_TO_CART],
                 "orders": self.counts[EVENT_TYPE_ORDER_PLACED],
                 "waitlist": self.counts[EVENT_TYPE_WAITLIST_JOIN],

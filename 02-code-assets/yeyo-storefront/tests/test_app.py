@@ -67,3 +67,20 @@ def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
     assert any("OVERSELL" in e.value for e in at.error)
     lines = events_file.read_text().splitlines()
     assert sum('"page_view"' in line for line in lines) == 200
+
+
+def test_ops_reset_demo_clears_run_locally(monkeypatch, tmp_path):
+    monkeypatch.setenv("PUBLISH_MODE", "local")
+    monkeypatch.setenv("CATALOG_SOURCE", "sample")
+    monkeypatch.setenv("LOCAL_EVENTS_FILE", str(tmp_path / "events.jsonl"))
+    monkeypatch.setenv("VIRAL_PAGE_VIEWS", "50")
+    monkeypatch.setenv("VIRAL_DURATION_SECONDS", "0")
+    st.cache_resource.clear()
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    next(b for b in at.button if b.label == "Go viral").click().run()
+    at.session_state["viral_job"].join(30)
+    at.run()
+    next(b for b in at.button if b.label == "Reset demo").click().run()
+    assert not at.exception
+    assert at.session_state["viral_job"] is None
+    assert any("Demo reset" in i.value for i in at.info)

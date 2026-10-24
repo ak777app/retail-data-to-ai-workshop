@@ -82,6 +82,8 @@ class Config:
     partner_lake_dataset: str = "yeyo_partner_lake"
     partner_stock_table: str = "partner_stock"
     lakehouse_bucket: str = ""
+    lakehouse_catalog: str = "yeyo_lake"
+    spark_service_account: str = ""
     dq_scan_id: str = "yeyo-oversell-dq"
     agent_url: str = ""
     viral_listing_id: str = "LST-0017"
@@ -158,6 +160,8 @@ def load_config(env_file: Optional[os.PathLike] = None) -> Config:
         partner_lake_dataset=_env("PARTNER_LAKE_DATASET", "yeyo_partner_lake"),
         partner_stock_table=_env("PARTNER_STOCK_TABLE", "partner_stock"),
         lakehouse_bucket=_env("LAKEHOUSE_BUCKET", ""),
+        lakehouse_catalog=_env("LAKEHOUSE_CATALOG", "yeyo_lake"),
+        spark_service_account=_env("SPARK_SERVICE_ACCOUNT", ""),
         dq_scan_id=_env("DQ_SCAN_ID", "yeyo-oversell-dq"),
         agent_url=_env("AGENT_URL", ""),
         viral_listing_id=_env("VIRAL_LISTING_ID", "LST-0017"),

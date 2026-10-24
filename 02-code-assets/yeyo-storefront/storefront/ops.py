@@ -14,7 +14,8 @@
 
 """Ops tab helpers: BigQuery queries for the viral moment and console deep links."""
 
-from typing import Dict, List, NamedTuple
+import time
+from typing import Dict, List, NamedTuple, Optional, Tuple
 from urllib.parse import quote
 
 from .config import Config
@@ -123,9 +124,69 @@ def run_query(config: Config, sql: str, params: Dict[str, str], client=None) -> 
     return [dict(r.items()) for r in client.query(sql, job_config=job_config).result()]
 
 
-def risk_level(projected_units: int, partner_units: int, at_risk_share: float = 0.25) -> str:
+def risk_level(projected_units: int, cart_units: int = 0) -> str:
+    """Same rule as vw_oversell_risk: oversold at zero, at risk when open carts exceed what is left."""
     if projected_units <= 0:
         return "OVERSOLD"
-    if projected_units <= partner_units * at_risk_share:
+    if projected_units < cart_units:
         return "AT_RISK"
     return "OK"
+
+
+DATAPROC_API = "https://dataproc.googleapis.com/v1"
+ICEBERG_JARS = ("iceberg-spark-runtime-3.5_2.13-1.10.2.jar", "iceberg-gcp-bundle-1.10.2.jar")
+TERMINAL_BATCH_STATES = ("SUCCEEDED", "FAILED", "CANCELLED")
+
+
+def restock_batch(config: Config, units: int, batch_id: Optional[str] = None) -> Tuple[str, Dict]:
+    """Serverless Spark batch that appends a fresh partner snapshot to the Iceberg feed (Module 13 section 3)."""
+    bucket = f"gs://{config.lakehouse_bucket}"
+    cat = f"spark.sql.catalog.{config.lakehouse_catalog}"
+    properties = {
+        "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+        cat: "org.apache.iceberg.spark.SparkCatalog",
+        f"{cat}.type": "rest",
+        f"{cat}.uri": "https://biglake.googleapis.com/iceberg/v1/restcatalog",
+        f"{cat}.warehouse": f"bl://projects/{config.project_id}/catalogs/{config.lakehouse_catalog}",
+        f"{cat}.header.x-goog-user-project": config.project_id,
+        f"{cat}.rest.auth.type": "org.apache.iceberg.gcp.auth.GoogleAuthManager",
+        f"{cat}.io-impl": "org.apache.iceberg.gcp.gcs.GCSFileIO",
+        "spark.dataproc.lineage.enabled": "true",
+    }
+    body: Dict = {
+        "pysparkBatch": {
+            "mainPythonFileUri": f"{bucket}/spark/partner_stock_sync.py",
+            "jarFileUris": [f"{bucket}/jars/{jar}" for jar in ICEBERG_JARS],
+            "args": ["--units", str(units), "--catalog", config.lakehouse_catalog,
+                     "--namespace", config.partner_lake_dataset, "--table", config.partner_stock_table],
+        },
+        "runtimeConfig": {"version": "2.3", "properties": properties},
+    }
+    if config.spark_service_account:
+        body["environmentConfig"] = {"executionConfig": {"serviceAccount": config.spark_service_account}}
+    return batch_id or f"glowlab-restock-{int(time.time())}", body
+
+
+def _authorized_session(session=None):
+    if session is not None:
+        return session
+    import google.auth
+    from google.auth.transport.requests import AuthorizedSession
+
+    credentials, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    return AuthorizedSession(credentials)
+
+
+def submit_restock(config: Config, units: int, session=None) -> str:
+    batch_id, body = restock_batch(config, units)
+    parent = f"projects/{config.project_id}/locations/{config.location}"
+    resp = _authorized_session(session).post(f"{DATAPROC_API}/{parent}/batches", params={"batchId": batch_id},
+                                             json=body, timeout=30)
+    resp.raise_for_status()
+    return f"{parent}/batches/{batch_id}"
+
+
+def batch_state(name: str, session=None) -> str:
+    resp = _authorized_session(session).get(f"{DATAPROC_API}/{name}", timeout=30)
+    resp.raise_for_status()
+    return resp.json().get("state", "PENDING")

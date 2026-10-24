@@ -38,6 +38,7 @@ from storefront.ops import (
     store_stock_sql,
 )
 from storefront.spike import SpikeConfig, SpikeJob
+from storefront.ops import TERMINAL_BATCH_STATES, batch_state, submit_restock
 from storefront.viral import ViralConfig, ViralJob, viral_listing
 
 CHANNEL_LABELS = {
@@ -73,6 +74,7 @@ ss.setdefault("cart", [])
 ss.setdefault("orders", [])
 ss.setdefault("spike_job", None)
 ss.setdefault("viral_job", None)
+ss.setdefault("restock", None)
 ss.setdefault("ops_bq", {})
 ss.setdefault("channel", CHANNEL_ONLINE)
 
@@ -333,6 +335,19 @@ def _ops_bigquery(job: ViralJob) -> None:
             cache["alert_error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
 
 
+def _reset_demo(units: int) -> None:
+    """Clear the viral run and restock the partner with a fresh Spark-written Iceberg snapshot."""
+    ss.viral_job = None
+    ss.ops_bq = {}
+    if config.publish_mode == "local" or not config.lakehouse_bucket:
+        ss.restock = {"state": "SKIPPED", "units": units}
+        return
+    try:
+        ss.restock = {"name": submit_restock(config, units), "state": "PENDING", "units": units}
+    except Exception as exc:
+        ss.restock = {"state": "FAILED", "units": units, "error": f"{exc.__class__.__name__}: {str(exc)[:200]}"}
+
+
 with ops_tab:
     try:
         hero_listing = viral_listing(catalog, config.viral_listing_id)
@@ -357,17 +372,48 @@ with ops_tab:
         v_secs = c3.slider("Viral window (seconds)", 0, config.spike_max_duration_seconds,
                            min(config.viral_duration_seconds, config.spike_max_duration_seconds), step=10,
                            disabled=v_running, key="viral_secs")
-        b1, b2, _ = st.columns([1, 1, 3])
-        if b1.button("Go viral", type="primary", disabled=v_running):
+        restocking = bool(ss.restock and ss.restock["state"] not in TERMINAL_BATCH_STATES + ("SKIPPED",))
+        b1, b2, b3, _ = st.columns([1, 1, 1, 2])
+        if b1.button("Go viral", type="primary", disabled=v_running or restocking):
             vcfg = ViralConfig(hero_listing.listing_id, int(v_views), float(v_secs), int(v_units)).validate(
                 max_duration_seconds=config.spike_max_duration_seconds)
             ss.viral_job = ViralJob(catalog, publisher, vcfg).start()
             ss.ops_bq = {}
+            ss.restock = None
             st.rerun()
         if b2.button("Stop", disabled=not v_running, key="viral_stop"):
             vjob.cancel()
+        if b3.button("Reset demo", disabled=v_running or restocking, key="viral_reset",
+                     help="Clears the run and restocks the partner: a Spark batch writes a fresh Iceberg snapshot."):
+            _reset_demo(int(v_units))
+            st.rerun()
 
-        @st.fragment(run_every=2.0 if v_running else None)
+        @st.fragment(run_every=10.0 if restocking else None)
+        def restock_status() -> None:
+            r = ss.restock
+            if not r:
+                return
+            if r.get("name") and r["state"] not in TERMINAL_BATCH_STATES:
+                try:
+                    r["state"] = batch_state(r["name"])
+                except Exception as exc:
+                    r["error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
+            batch = r.get("name", "").rsplit("/", 1)[-1]
+            if r["state"] == "SUCCEEDED":
+                st.success(f"Partner restocked: Spark batch `{batch}` wrote {r['units']:,} units to the Iceberg feed.")
+            elif r["state"] == "SKIPPED":
+                st.info("Demo reset. Partner restock skipped (local mode or LAKEHOUSE_BUCKET not set).")
+            elif r["state"] in TERMINAL_BATCH_STATES:
+                st.error(f"Partner restock {r['state']}: {r.get('error') or batch}")
+            else:
+                st.info(f"Restocking partner: Spark batch `{batch}` is {r['state']} (about 3 minutes).")
+            if restocking and r["state"] in TERMINAL_BATCH_STATES:
+                st.rerun(scope="app")
+
+        restock_status()
+        polling = v_running or bool(vjob and vjob.seconds_since_end < 60)
+
+        @st.fragment(run_every=2.0 if polling else None)
         def viral_live() -> None:
             job: ViralJob = ss.viral_job
             if job is None:
@@ -379,7 +425,7 @@ with ops_tab:
             bq_risk = (bq.get("risk") or [None])[0]
             projected = bq_risk["projected_units"] if bq_risk else snap["projected_units"]
             partner = bq_risk["partner_units"] if bq_risk else snap["partner_units"]
-            level = bq_risk["risk_level"] if bq_risk else risk_level(projected, partner)
+            level = bq_risk["risk_level"] if bq_risk else risk_level(projected, snap["cart_units"])
 
             m = st.columns(5)
             m[0].metric("Page views", f"{snap['page_views']:,}")
@@ -445,7 +491,7 @@ with ops_tab:
                     st.dataframe(bq["minutes"], hide_index=True, width="stretch")
             for err in snap["errors"]:
                 st.error(err)
-            if not job.is_running and v_running:
+            if (not job.is_running and v_running) or (polling and not v_running and job.seconds_since_end >= 60):
                 st.rerun(scope="app")
 
         viral_live()

@@ -82,7 +82,7 @@ gcloud dataproc batches submit pyspark gs://$BUCKET/spark/partner_stock_sync.py 
   -- --units 600
 ```
 
-Each run appends a fresh snapshot (600 units for `LST-0017`). Re-run it before each demo to "restock" the partner. Check BigQuery reads the same table Spark wrote:
+Each run appends a fresh snapshot (600 units for `LST-0017`). Before each demo, restock the partner either by re-running this command or by pressing **Reset demo** on the Ops tab (section 5). Check BigQuery reads the same table Spark wrote:
 
 ```
 bq query --use_legacy_sql=false "SELECT * FROM \`$PROJECT_ID.yeyo_lake.yeyo_partner_lake.partner_stock\` ORDER BY snapshot_ts DESC"
@@ -136,6 +136,13 @@ Set `LAKEHOUSE_BUCKET=$BUCKET` (and optionally `AGENT_URL` to your `adk web` or 
 - **Demo links**: Pub/Sub topics, BigQuery tables, the data quality scan, lineage, the Knowledge Catalog entry for the Iceberg table, Spark batches and the Cloud Storage folder.
 
 Lineage: open `vw_oversell_risk` > **Lineage**. It shows `clickstream_events`, `marketplace_orders` and the Spark-written Iceberg table `partner_stock` feeding the view. Lineage shows up a few minutes after the view is created, so build it well before the demo.
+
+**Reset demo** clears the run and submits the same Spark batch from the storefront, with the units set in "Partner units on hand". It takes about 3 minutes, and **Go viral** is disabled until the batch finishes. To let the Cloud Run service account submit it:
+
+```
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$SA --role=roles/dataproc.editor --condition=None
+gcloud iam service-accounts add-iam-policy-binding $SPARK_SA --member=serviceAccount:$SA --role=roles/iam.serviceAccountUser
+```
 
 Then run the scan (`gcloud dataplex datascans run yeyo-oversell-dq --location=$LOCATION`) to show the rule failing on the oversold listing.
 
