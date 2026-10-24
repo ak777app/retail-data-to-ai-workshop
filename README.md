@@ -21,7 +21,7 @@ The objective is to demystify Google Cloud products and services for data and ag
 
 The workshop follows **YeYo**, a fictitious pharmacy and lifestyle retailer that sells in stores, online and through the YeYo Marketplace. The demo starts at the **YeYo storefront UI**:
 
-1. **Storefront** ([Module 12](03-lab-manuals/Module-12-YeYo-Storefront-UI.md)): a shopper places an online or marketplace order, or the presenter clicks **Simulate order spike**.
+1. **Storefront** ([Module 12](03-lab-manuals/Module-12-YeYo-Storefront-UI.md)): a shopper places an online or marketplace order, or the presenter clicks **Go viral** on the Ops tab.
 2. **Streaming** ([Module 11](03-lab-manuals/Module-11-Realtime-Streaming-To-BigQuery.md)): each order event goes to the Pub/Sub topic `yeyo-orders`, and BigQuery subscriptions land it in `capstone_ds.online_orders` / `capstone_ds.marketplace_orders`.
 3. **Data warehousing, Iceberg/BigLake, governance and BI** (Modules 2-10, 20).
 4. **Agents act on it** (Modules 21-25).
@@ -105,7 +105,7 @@ These learning modules give you a gentle introduction to Google Cloud's portfoli
 |   9. | [**Embedding generation and vector search in BigQuery with just SQL**](03-lab-manuals/Module-09-Embedding-Gen-And-Vector-Search-In-BQ.md) <br> We will generate product images based on descriptions. We will then generate embeddings for the product description and images and learn to do text-to-text search as well as text-to-image search - all from within BigQuery with SQL  | 
 | 10a. | [**Apache Iceberg Lakehouse in BigQuery with managed Iceberg tables**](https://github.com/anagha-google/retail-supply-chain-workshop/blob/main/03-lab-manuals/Module-10a-Apache-Iceberg-Lakehouse.md) <br> We will learn to create an Apache Iceberg lakehouse with BigQuey managed Iceberg tables, and learn to run DML operations on Iceberg with BigQuery SQL. We will also query these tables with Apache Spark on Dataproc Servereless to fetch the freshest data.  | 
 |  11. | [**Real-time order streaming into BigQuery**](03-lab-manuals/Module-11-Realtime-Streaming-To-BigQuery.md) <br> Pub/Sub topic `yeyo-orders` with channel-filtered BigQuery subscriptions landing online, marketplace and in-store orders in `capstone_ds` - no pipeline code  |
-|  12. | [**YeYo storefront UI - mock orders and order spike**](03-lab-manuals/Module-12-YeYo-Storefront-UI.md) <br> Streamlit storefront (Cloud Shell / optional Cloud Run) that publishes online and marketplace orders, and simulates an order spike, into the streaming pipeline. Step 1 of the [end-to-end demo](DEMO-TRIAL.md)  |
+|  12. | [**YeYo storefront UI - mock orders and order spike**](03-lab-manuals/Module-12-YeYo-Storefront-UI.md) <br> Streamlit storefront (Cloud Shell / optional Cloud Run) that publishes online and marketplace orders, into the streaming pipeline. Step 1 of the [end-to-end demo](DEMO-TRIAL.md)  |
 |  13. | [**YeYo viral moment - clickstream, Iceberg partner feed, oversell alert**](03-lab-manuals/Module-13-YeYo-Viral-Moment.md) <br> "Go viral" on the storefront Ops tab: clickstream and marketplace orders stream to BigQuery, a Spark-written Iceberg partner feed, an oversell alert with Dataplex data quality and lineage, a marketing tab (traffic source, revenue at risk, next best action by postcode), and the agent finding branches with stock. 5-minute demo talk track |
 
 ### 9A.2. Learning Modules - getting started

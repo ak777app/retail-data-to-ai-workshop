@@ -137,6 +137,13 @@ Set `LAKEHOUSE_BUCKET=$BUCKET` (and optionally `AGENT_URL` to your `adk web` or 
 - **Demo links**: Pub/Sub topics, BigQuery tables, the data quality scan, a Looker Studio report, lineage, the Knowledge Catalog entry for the Iceberg table, Spark batches and the Cloud Storage folder.
 - **Latest Pub/Sub events landed in BigQuery**: the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, to show the chart is backed by real data.
 
+**Story flow (no clicks between beats except Go viral):**
+
+1. Before the spike, the Ops tab shows marketing's current (simulated) bids on other products.
+2. **Go viral**: shoppers, carts and orders climb; the spike pauses automatically at `VIRAL_PAUSE_UNITS` partner units left (default 400, "Demo settings"). A **Viral alert** pop-up shows shoppers in the last minute, carts and time to sell-out; its button deploys high-bid Google Shopping, Search and social campaigns on the hero product.
+3. Open the **Marketing** tab (new bids, funnel, revenue at risk). Switching back to the Ops tab resumes the spike.
+4. When partner stock runs out, a **Sold out** pop-up lists YeYo stores with stock; the hero campaigns pause and "collect in store today" plus the substitute campaigns start. On the **Shop** tab (online or marketplace channel) the product's **Add to cart** becomes **Click & collect**, which publishes an online order with `fulfillment_type = CLICK_AND_COLLECT` and the chosen store as `location_id`.
+
 **Marketing: viral moment** tab (same run, read from `vw_marketing_viral`, refreshed every 5 seconds):
 
 - KPIs: sessions, share from TikTok, conversion, revenue and revenue at risk (waitlist units × listing price);

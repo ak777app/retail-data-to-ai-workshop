@@ -14,7 +14,7 @@
 
 """Marketing tab: traffic source, funnel, revenue at risk and next best action for the viral moment."""
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from .config import Config
 
@@ -23,6 +23,51 @@ ACTION_STORE = 'Geo-target "collect in store today" at '
 ACTION_SUBSTITUTE = "Swap creative to the own-brand substitute"
 METRICS = ("sessions", "page_views", "cart_units", "purchase_sessions", "purchase_units", "revenue",
            "waitlist_units", "revenue_at_risk")
+
+
+PHASE_BASELINE, PHASE_VIRAL, PHASE_SURGE, PHASE_SOLD_OUT = "baseline", "viral", "surge", "sold_out"
+NEW_BID = "NEW: high bid"
+
+
+def story_phase(started: bool, pause_done: bool, projected_units: int) -> str:
+    """Where the viral story is: before the spike, rising, marketing has reacted, partner sold out."""
+    if not started:
+        return PHASE_BASELINE
+    if projected_units <= 0:
+        return PHASE_SOLD_OUT
+    return PHASE_SURGE if pause_done else PHASE_VIRAL
+
+
+def _bid(campaign, product, channel, targeting, cpc, budget, status) -> Dict:
+    return {"Campaign": campaign, "Product": product, "Channel": channel, "Targeting": targeting,
+            "Max CPC": f"${cpc:,.2f}", "Daily budget": f"${budget:,.0f}", "Status": status}
+
+
+def campaign_bids(phase: str, hero: str, others: Sequence[Tuple[str, str]], substitute: Optional[str] = None,
+                  stores: Sequence[str] = ()) -> List[Dict]:
+    """Simulated ad bids (Google Ads is not connected) for each phase of the story.
+
+    `others` are (product, search terms) pairs for the always-on campaigns."""
+    rows = [_bid("Always-on", name, "Google Shopping", terms, 0.45 + 0.1 * i, 300, "Live")
+            for i, (name, terms) in enumerate(others)]
+    if phase not in (PHASE_SURGE, PHASE_SOLD_OUT):
+        return rows
+    hero_status = NEW_BID if phase == PHASE_SURGE else "Paused: partner sold out"
+    viral = [
+        _bid("Viral: Shopping", hero, "Google Shopping", "tiktok eye tightener, instant eye firming", 2.40, 5000,
+             hero_status),
+        _bid("Viral: Search", hero, "Google Search", "viral under eye cream, temporary eye tightener", 1.80, 3000,
+             hero_status),
+        _bid("Viral: Social", hero, "TikTok + Instagram", "viewers of the viral video and lookalikes", 1.20, 4000,
+             hero_status),
+    ]
+    if phase == PHASE_SOLD_OUT:
+        viral.insert(0, _bid("Collect in store today", hero, "Local inventory ads",
+                             "within 10 miles of " + (", ".join(stores) or "YeYo stores"), 1.50, 2000, "NEW"))
+        if substitute:
+            viral.insert(1, _bid("Substitute", substitute, "Google Shopping + social",
+                                 "eye tightener, eye firming", 1.10, 3000, "NEW"))
+    return viral + rows
 
 
 def next_best_action(risk_level: Optional[str], nearest_store: Optional[str]) -> str:

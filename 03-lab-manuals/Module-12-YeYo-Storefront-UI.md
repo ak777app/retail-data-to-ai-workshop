@@ -1,4 +1,4 @@
-# Module 12: YeYo storefront UI - place mock orders and simulate an order spike
+# Module 12: YeYo storefront UI - place mock orders
 
 <hr>
 
@@ -6,13 +6,13 @@
 
 Every YeYo demo starts here. The storefront is a small [Streamlit](https://streamlit.io) app with a YeYo pharmacy and lifestyle catalog, a cart, and a channel toggle for in-store, online, or the YeYo Marketplace. For marketplace items you also pick the third-party seller. When you place an order, the app builds an order event (header plus line items, linked by `omni_item_id`) and publishes it to the `yeyo-orders` Pub/Sub topic from [Module 11](Module-11-Realtime-Streaming-To-BigQuery.md). BigQuery subscriptions then land the event in `capstone_ds.online_orders` / `capstone_ds.marketplace_orders` within seconds.
 
-The **Simulate order spike** button publishes a burst of synthetic online and marketplace orders through the same publisher and event schema. This gives the later modules a demand spike to work with: warehousing, Iceberg/BigLake, governance, BI and agents. See [DEMO-TRIAL.md](../DEMO-TRIAL.md) for the full narrative.
+For the spike that feeds the later modules (warehousing, Iceberg/BigLake, governance, BI and agents), use **Go viral** on the Ops tab ([Module 13](Module-13-YeYo-Viral-Moment.md)). See [DEMO-TRIAL.md](../DEMO-TRIAL.md) for the full narrative.
 
 Code: [`02-code-assets/yeyo-storefront`](../02-code-assets/yeyo-storefront)
 
 | File | Purpose |
 | :-- | :-- |
-| `app.py` | Streamlit UI (Shop, Simulate order spike, Orders & BigQuery landing tabs) |
+| `app.py` | Streamlit UI (Shop, Ops: viral moment, Marketing: viral moment tabs) |
 | `storefront/catalog.py` | Loads `product_master`, marketplace sellers and listings from BigQuery or `sample_data/` |
 | `storefront/events.py` | Order event builder shared by single orders and the spike |
 | `storefront/publisher.py` | Pub/Sub publisher, BigQuery-direct fallback, and a local-file mode for rehearsals |
@@ -42,7 +42,7 @@ Code: [`02-code-assets/yeyo-storefront`](../02-code-assets/yeyo-storefront)
 | 2 | [Run the storefront in Cloud Shell](Module-12-YeYo-Storefront-UI.md#2-run-the-storefront-in-cloud-shell) |
 | 3 | [Place mock online and marketplace orders](Module-12-YeYo-Storefront-UI.md#3-place-mock-online-and-marketplace-orders) |
 | 4 | [Watch rows arrive in BigQuery](Module-12-YeYo-Storefront-UI.md#4-watch-rows-arrive-in-bigquery) |
-| 5 | [Simulate an order spike](Module-12-YeYo-Storefront-UI.md#5-simulate-an-order-spike) |
+| 5 | [Viral spike (Ops tab)](Module-12-YeYo-Storefront-UI.md#5-viral-spike-ops-tab) |
 | 6 | [(Optional) Deploy to Cloud Run](Module-12-YeYo-Storefront-UI.md#6-optional-deploy-to-cloud-run) |
 | 7 | [Trial-account cost and quota considerations](Module-12-YeYo-Storefront-UI.md#7-trial-account-cost-and-quota-considerations) |
 
@@ -114,7 +114,7 @@ In-store orders work too: pick **In-store** and a store. They land in `instore_o
 
 ## 4. Watch rows arrive in BigQuery
 
-On the **Orders & BigQuery landing** tab, click **Refresh from BigQuery** for a per-minute count. You can also run this in the BigQuery console:
+For a per-minute count, run this in the BigQuery console:
 
 ```
 SELECT publish_time, order_id, channel, fulfillment_type, marketplace_seller_id, order_total,
@@ -137,18 +137,11 @@ ORDER BY l.publish_time DESC;
 
 <hr>
 
-## 5. Simulate an order spike
+## 5. Viral spike (Ops tab)
 
-1. Open the **Simulate order spike** tab.
-2. Set **Number of orders**, the **Burst window (seconds)** that the orders are spread across (0 publishes as fast as possible), and the **Marketplace share (%)**.
-3. Click **Simulate order spike**. The spike runs in a background thread, so you can keep shopping. A live progress bar shows `Published X/N events`, the online and marketplace split, and events per second. **Stop** cancels the burst.
-4. When it finishes, a summary shows the published and failed counts, elapsed time, simulated revenue and the `spike_id` (the online/marketplace split stays in the metrics above it).
+The storefront no longer has a separate order-spike tab. The burst of orders now comes from **Go viral** on the **Ops: viral moment** tab ([Module 13](Module-13-YeYo-Viral-Moment.md)).
 
-Each synthetic order picks a random active product. Marketplace orders also pick a random active seller listing. Quantities are random from 1 to 3, with 1 to 3 lines per order, and `order_ts` values are spread across the burst window. Every event uses the same builder and publisher as a shopper's order, with `event_source = "spike_simulator"` and a shared `spike_id`.
-
-**Suggested burst size for a trial account:** start with the default of **200 orders over 60 seconds**. For a dramatic demo, **1,000 orders over 120 seconds** is still around 1 MB of Pub/Sub traffic. The UI is capped at `SPIKE_MAX_ORDERS` (default 2,000) and `SPIKE_MAX_DURATION_SECONDS` (default 600); raise these in `.env` only if you need more.
-
-**Watch the spike arrive in near real time.** Run this in the BigQuery console and re-run it every few seconds:
+**Watch orders arrive in near real time.** Run this in the BigQuery console and re-run it every few seconds:
 
 ```
 SELECT
