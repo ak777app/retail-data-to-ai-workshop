@@ -548,9 +548,9 @@ with marketing_tab:
         price = float(job.listing.listing_price)
         bq_risk = (ss.ops_bq.get("risk") or [None])[0]
         level = bq_risk["risk_level"] if bq_risk else risk_level(snap["projected_units"], snap["cart_units"])
-        sim = simulator_rows(snap, price, level)
-        rows = {key: mk.get(key) or sim[key] for key in ("referrer", "postcode")}
         from_bq = bool(mk.get("referrer")) and bool(mk.get("postcode"))
+        rows = ({key: mk[key] for key in ("referrer", "postcode")} if from_bq
+                else simulator_rows(snap, price, level))
         t = totals(rows["referrer"])
 
         st.markdown(f"**{snap['description']}** on the YeYo Marketplace ({snap['seller_name']}), "
