@@ -50,6 +50,7 @@ from .spike import STATUS_CANCELLED, STATUS_DONE, STATUS_ERROR, STATUS_PENDING, 
 REFERRERS = ("tiktok.com", "tiktok.com", "tiktok.com", "instagram.com", "google.com", "direct")
 POSTAL_CODES = ("60601", "60614", "60540", "60563", "60173", "60194", "46201", "53202")
 BUCKET_SECONDS = 10
+STATUS_PAUSED = "paused"
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,7 @@ class ViralConfig:
     cart_rate: float = 0.3
     order_rate: float = 0.45
     seed: Optional[int] = None
+    pause_at_units: Optional[int] = None
 
     def validate(self, max_page_views: int = 20000, max_duration_seconds: int = 600) -> "ViralConfig":
         if not 1 <= self.page_views <= max_page_views:
@@ -69,8 +71,9 @@ class ViralConfig:
             raise ValueError(f"duration_seconds must be between 0 and {max_duration_seconds}")
         if self.partner_units < 1:
             raise ValueError("partner_units must be >= 1")
+        pause = self.pause_at_units if self.pause_at_units and self.pause_at_units < self.partner_units else None
         return replace(self, cart_rate=min(max(self.cart_rate, 0.0), 1.0),
-                       order_rate=min(max(self.order_rate, 0.0), 1.0))
+                       order_rate=min(max(self.order_rate, 0.0), 1.0), pause_at_units=pause)
 
 
 def viral_listing(catalog: Catalog, listing_id: str) -> Listing:
@@ -142,6 +145,9 @@ class ViralJob:
         self._rng = random.Random(config.seed)
         self._lock = threading.Lock()
         self._cancel = threading.Event()
+        self._resume = threading.Event()
+        self.pause_done = False
+        self._paused_at: Optional[float] = None
         self._thread: Optional[threading.Thread] = None
         self.status = STATUS_PENDING
         self.counts: Counter = Counter()
@@ -167,13 +173,20 @@ class ViralJob:
     def cancel(self) -> None:
         self._cancel.set()
 
+    def resume(self) -> None:
+        self._resume.set()
+
+    @property
+    def is_paused(self) -> bool:
+        return self.status == STATUS_PAUSED
+
     def join(self, timeout: Optional[float] = None) -> None:
         if self._thread:
             self._thread.join(timeout)
 
     @property
     def is_running(self) -> bool:
-        return self.status in (STATUS_PENDING, STATUS_RUNNING)
+        return self.status in (STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED)
 
     @property
     def seconds_since_end(self) -> float:
@@ -224,16 +237,37 @@ class ViralJob:
                     c[e["event_type"]] += 1
                     c[f"{e['event_type']}_units"] += e["quantity"]
 
+    def _should_pause(self) -> bool:
+        limit = self.config.pause_at_units
+        return limit is not None and not self.pause_done and self.projected_units <= limit
+
+    def _pause(self) -> None:
+        """Hold the spike (presenter talks over the dashboards) until resume() or cancel()."""
+        with self._lock:
+            self.pause_done = True
+            self._paused_at = self._clock()
+            self.status = STATUS_PAUSED
+        while not self._resume.wait(0.25) and not self._cancel.is_set():
+            pass
+        with self._lock:
+            self._started_at += self._clock() - self._paused_at
+            self._paused_at = None
+            self.status = STATUS_RUNNING
+
     def _run(self) -> None:
         self.status = STATUS_RUNNING
         self._started_at = self._clock()
         try:
             i, n = 0, len(self._schedule)
             while i < n and not self._cancel.is_set():
+                if self._should_pause():
+                    self._pause()
+                    continue
                 elapsed = self._clock() - self._started_at
                 batch: List[Dict] = []
                 with self._lock:
-                    while i < n and self._schedule[i] <= elapsed and len(batch) < 100:
+                    while (i < n and self._schedule[i] <= elapsed and len(batch) < 100
+                           and not self._should_pause()):
                         events = self._session_events(self._now())
                         self._record(events, elapsed)
                         batch.extend(events)
@@ -266,8 +300,9 @@ class ViralJob:
     # ------------------------------------------------------------ reporting
     def snapshot(self) -> Dict:
         with self._lock:
-            end = self._ended_at if self._ended_at is not None else self._clock()
+            end = next((t for t in (self._ended_at, self._paused_at) if t is not None), None) or self._clock()
             elapsed = (end - self._started_at) if self._started_at is not None else 0.0
+            live = sum(c[EVENT_TYPE_PAGE_VIEW] for s, c in self.buckets.items() if s + BUCKET_SECONDS > elapsed - 60)
             timeline = [
                 {"second": s, "page_views": c[EVENT_TYPE_PAGE_VIEW], "add_to_cart": c[EVENT_TYPE_ADD_TO_CART],
                  "orders": c[EVENT_TYPE_ORDER_PLACED], "waitlist": c[EVENT_TYPE_WAITLIST_JOIN]}
@@ -280,6 +315,9 @@ class ViralJob:
                 "omni_item_id": self.product.omni_item_id,
                 "description": self.product.description,
                 "seller_name": self.catalog.sellers[self.listing.seller_id].seller_name,
+                "paused": self.status == STATUS_PAUSED,
+                "pause_done": self.pause_done,
+                "live_shoppers": live,
                 "page_views": self.counts[EVENT_TYPE_PAGE_VIEW],
                 "cart_units": self.cart_units,
                 "add_to_cart": self.counts[EVENT_TYPE_ADD_TO_CART],

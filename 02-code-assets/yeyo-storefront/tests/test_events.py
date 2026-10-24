@@ -94,3 +94,14 @@ def test_mixed_fulfillment_marketplace_order_keeps_line_fulfillment(catalog):
     ev = build_order_event(catalog, [picks["YEYO_FULFILLED"], picks["SELLER_FULFILLED"]], channel="marketplace")
     assert [li["fulfillment_type"] for li in ev["line_items"]] == ["YEYO_FULFILLED", "SELLER_FULFILLED"]
     assert ev["fulfillment_type"] == "SELLER_FULFILLED" and ev["location_id"] == "WHE-IL-WH"
+
+
+def test_click_and_collect_order(catalog):
+    from storefront.events import CartLine, build_order_event
+    p = catalog.product("BEA-3001-OM")
+    ev = build_order_event(catalog, [CartLine(p, 1)], channel="online", location_id="CHI-IL-ST",
+                           click_and_collect=True)
+    assert ev["fulfillment_type"] == "CLICK_AND_COLLECT" and ev["location_id"] == "CHI-IL-ST"
+    assert ev["line_items"][0]["fulfillment_type"] == "CLICK_AND_COLLECT"
+    with pytest.raises(ValueError):
+        build_order_event(catalog, [CartLine(p, 1)], channel="online", click_and_collect=True)

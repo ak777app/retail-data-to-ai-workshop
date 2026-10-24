@@ -19,7 +19,8 @@ from pathlib import Path
 from storefront.catalog import SAMPLE_DATA_DIR, _read_csv, load_bigquery_catalog
 from storefront.ops import CONSOLE, demo_links, group_links, restock_batch, risk_level, submit_restock
 from storefront.publisher import BigQueryPublisher, PubSubPublisher, event_attributes, event_to_row
-from storefront.marketing import (ACTION_SCALE, ACTION_STORE, ACTION_SUBSTITUTE, by_postcode_sql,
+from storefront.marketing import (PHASE_SOLD_OUT, PHASE_SURGE, PHASE_VIRAL, campaign_bids, story_phase,
+                                  ACTION_SCALE, ACTION_STORE, ACTION_SUBSTITUTE, by_postcode_sql,
                                   by_referrer_sql, next_best_action, simulator_rows, totals)
 from storefront.viral import ViralConfig, ViralJob, build_clickstream_event, viral_listing
 from test_publisher_and_spike import FakeBigQueryClient, FakePubSubClient
@@ -237,3 +238,33 @@ def test_next_best_action_matches_view():
 def test_marketing_sql_targets_view(config):
     for sql in (by_referrer_sql(config), by_postcode_sql(config)):
         assert "`test-project.capstone_ds.vw_marketing_viral`" in sql and "@viral_id" in sql
+
+
+def test_viral_pauses_at_threshold_until_resumed(catalog, config):
+    cfg = ViralConfig(page_views=400, duration_seconds=0, partner_units=40, seed=7, pause_at_units=20)
+    job = ViralJob(catalog, PubSubPublisher(config, client=FakePubSubClient()), cfg).start()
+    for _ in range(100):
+        if job.is_paused:
+            break
+        job.join(0.05)
+    snap = job.snapshot()
+    assert snap["paused"] and job.is_running and 18 <= snap["projected_units"] <= 20
+    job.join(0.3)
+    assert job.snapshot()["page_views"] == snap["page_views"]
+    job.resume()
+    job.join(30)
+    assert not job.is_running and job.projected_units <= 0 and job.snapshot()["pause_done"]
+
+
+def test_campaign_bids_follow_story():
+    others = [("Allergy relief", "allergy")]
+    assert story_phase(True, False, 300) == PHASE_VIRAL
+    assert story_phase(True, True, 300) == PHASE_SURGE
+    assert story_phase(True, True, 0) == PHASE_SOLD_OUT
+    assert [r["Product"] for r in campaign_bids(PHASE_VIRAL, "Hero", others)] == ["Allergy relief"]
+    surge = campaign_bids(PHASE_SURGE, "Hero", others)
+    assert sum(r["Product"] == "Hero" and r["Status"].startswith("NEW") for r in surge) == 3
+    sold = campaign_bids(PHASE_SOLD_OUT, "Hero", others, "YeYo serum", ["Chicago store"])
+    assert sold[0]["Campaign"] == "Collect in store today" and "Chicago store" in sold[0]["Targeting"]
+    assert sold[1]["Product"] == "YeYo serum"
+    assert all(r["Status"].startswith("Paused") for r in sold if r["Campaign"].startswith("Viral"))

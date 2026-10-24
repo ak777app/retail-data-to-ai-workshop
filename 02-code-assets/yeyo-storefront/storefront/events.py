@@ -46,6 +46,7 @@ FULFILLMENT_IN_STORE = "IN_STORE"
 FULFILLMENT_SHIP_FROM_WAREHOUSE = "SHIP_FROM_WAREHOUSE"
 FULFILLMENT_SELLER = "SELLER_FULFILLED"
 FULFILLMENT_YEYO = "YEYO_FULFILLED"
+FULFILLMENT_CLICK_AND_COLLECT = "CLICK_AND_COLLECT"
 
 _CENT = Decimal("0.01")
 
@@ -82,10 +83,13 @@ def build_order_event(
     event_source: str = EVENT_SOURCE_STOREFRONT,
     order_ts: Optional[datetime] = None,
     spike_id: Optional[str] = None,
+    click_and_collect: bool = False,
 ) -> Dict:
     """Builds the order event (header + line items) for any channel."""
     if channel not in CHANNELS:
         raise ValueError(f"channel must be one of {CHANNELS}, got {channel!r}")
+    if click_and_collect and (channel != CHANNEL_ONLINE or not location_id):
+        raise ValueError("Click & collect needs the online channel and a store location_id")
     if not lines:
         raise ValueError("An order needs at least one line item")
 
@@ -113,6 +117,8 @@ def build_order_event(
                                 else FULFILLMENT_SELLER)
         elif channel == CHANNEL_IN_STORE:
             line_fulfillment = FULFILLMENT_IN_STORE
+        elif click_and_collect:
+            line_fulfillment = FULFILLMENT_CLICK_AND_COLLECT
         else:
             line_fulfillment = FULFILLMENT_SHIP_FROM_WAREHOUSE
         line_items.append({
@@ -133,6 +139,8 @@ def build_order_event(
         stores = [s.location_id for s in catalog.stores()]
         location_id = location_id or (stores[0] if stores else None)
         fulfillment_type = FULFILLMENT_IN_STORE
+    elif click_and_collect:
+        fulfillment_type = FULFILLMENT_CLICK_AND_COLLECT
     elif channel == CHANNEL_ONLINE:
         location_id = location_id or DEFAULT_ONLINE_FULFILLMENT_LOCATION
         fulfillment_type = FULFILLMENT_SHIP_FROM_WAREHOUSE

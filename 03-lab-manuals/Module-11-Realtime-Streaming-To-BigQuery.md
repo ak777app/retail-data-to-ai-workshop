@@ -6,7 +6,7 @@
 
 YeYo sells pharmacy and lifestyle products in its stores, on its website, and through third-party sellers on the YeYo Marketplace. Until now every module in this workshop has used static batch files. In this module YeYo starts streaming orders: each order is published as one JSON event to a Pub/Sub topic, and Pub/Sub [BigQuery subscriptions](https://cloud.google.com/pubsub/docs/bigquery) write it straight into BigQuery tables. You don't need Dataflow or any code to do it.
 
-This is the streaming pillar of the end-to-end demo. The [YeYo storefront UI (Module 12)](Module-12-YeYo-Storefront-UI.md) publishes to the topic you create here, both for single mock orders and for a simulated order spike. The tables you create here then feed the warehousing, Iceberg/BigLake, governance, BI and agent modules.
+This is the streaming pillar of the end-to-end demo. The [YeYo storefront UI (Module 12)](Module-12-YeYo-Storefront-UI.md) publishes to the topic you create here, both for single mock orders and for the viral spike ([Module 13](Module-13-YeYo-Viral-Moment.md)). The tables you create here then feed the warehousing, Iceberg/BigLake, governance, BI and agent modules.
 
 ```
 YeYo storefront (Module 12) ──► Pub/Sub topic: yeyo-orders

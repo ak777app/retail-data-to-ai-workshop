@@ -65,7 +65,7 @@ BQ_INSTORE_ORDERS_TABLE="instore_orders"
    streamlit run app.py --server.port=8080 --server.headless=true
    ```
 3. Tell the story. A shopper buys allergy relief **online**, then orders a yoga mat from a **marketplace seller**. Show the order event JSON: header, line items, `channel`, `marketplace_seller_id`, `marketplace_listing_id` and `omni_item_id`.
-4. Then say "allergy season just hit": open **Simulate order spike** and publish **200 orders over 60 seconds**, about 40% of them marketplace. Progress updates live while the UI stays usable.
+4. Then open **Ops: viral moment** for the spike (below).
 
 <hr>
 
