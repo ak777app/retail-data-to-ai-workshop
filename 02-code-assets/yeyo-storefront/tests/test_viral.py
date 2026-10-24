@@ -169,3 +169,13 @@ def test_restock_batch_and_submit(config):
     name = submit_restock(cfg, 600, session=Session())
     assert calls[0][0].endswith(f"/projects/test-project/locations/{cfg.location}/batches")
     assert name.endswith(calls[0][1]["batchId"])
+
+
+class _TimeoutOrdersPublisher(_FailOrdersPublisher):
+    def publish_many(self, events):
+        return [_Future(TimeoutError() if e["event_type"] == "order_placed" else None) for e in events]
+
+
+def test_timed_out_orders_keep_partner_stock_consumed(catalog):
+    job = _run(catalog, _TimeoutOrdersPublisher())
+    assert job.snapshot()["units_ordered"] > 0

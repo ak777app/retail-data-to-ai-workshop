@@ -22,6 +22,7 @@ still says IN_STOCK, so late add-to-carts become waitlist joins.
 
 import random
 import threading
+from concurrent.futures import TimeoutError as FuturesTimeout
 import time
 import uuid
 from collections import Counter
@@ -243,7 +244,7 @@ class ViralJob:
                 self.published += 1
             except Exception as exc:
                 self.failed += 1
-                if event["event_type"] == EVENT_TYPE_ORDER_PLACED:
+                if event["event_type"] == EVENT_TYPE_ORDER_PLACED and not isinstance(exc, FuturesTimeout):
                     with self._lock:
                         self.units_ordered -= sum(int(li["quantity"]) for li in event["line_items"])
                 if len(self.errors) < 5:

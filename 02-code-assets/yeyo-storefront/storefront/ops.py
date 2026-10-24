@@ -15,6 +15,7 @@
 """Ops tab helpers: BigQuery queries for the viral moment and console deep links."""
 
 import time
+import uuid
 from typing import Dict, List, NamedTuple, Optional, Tuple
 from urllib.parse import quote
 
@@ -164,7 +165,7 @@ def restock_batch(config: Config, units: int, batch_id: Optional[str] = None) ->
     }
     if config.spark_service_account:
         body["environmentConfig"] = {"executionConfig": {"serviceAccount": config.spark_service_account}}
-    return batch_id or f"glowlab-restock-{int(time.time())}", body
+    return batch_id or f"glowlab-restock-{int(time.time())}-{uuid.uuid4().hex[:6]}", body
 
 
 def _authorized_session(session=None):
