@@ -26,6 +26,7 @@ from storefront.catalog import Catalog, load_catalog
 from storefront.config import CHANNEL_IN_STORE, CHANNEL_MARKETPLACE, CHANNEL_ONLINE, Config, load_config
 from storefront.events import IN_STORE_PAYMENT_TYPES, PAYMENT_TYPES, CartLine, build_order_event
 from storefront.landing import landing_sql, query_landing
+from storefront.marketing import by_postcode_sql, by_referrer_sql, simulator_rows, totals
 from storefront.publisher import AutoPublisher, BasePublisher, create_publisher
 from storefront.ops import (
     demo_links,
@@ -77,6 +78,7 @@ ss.setdefault("spike_job", None)
 ss.setdefault("viral_job", None)
 ss.setdefault("restock", None)
 ss.setdefault("ops_bq", {})
+ss.setdefault("mkt_bq", {})
 ss.setdefault("channel", CHANNEL_ONLINE)
 
 
@@ -170,8 +172,8 @@ with st.sidebar:
 st.title("YeYo")
 st.caption("Everyday pharmacy, wellness and lifestyle - in-store, online and on the YeYo Marketplace.")
 
-shop_tab, spike_tab, ops_tab, log_tab = st.tabs(
-    ["Shop", "Simulate order spike", "Ops: viral moment", "Orders & BigQuery landing"])
+shop_tab, spike_tab, ops_tab, marketing_tab, log_tab = st.tabs(
+    ["Shop", "Simulate order spike", "Ops: viral moment", "Marketing: viral moment", "Orders & BigQuery landing"])
 
 # ---------------------------------------------------------------- shop
 with shop_tab:
@@ -340,6 +342,7 @@ def _reset_demo(units: int) -> None:
     """Clear the viral run and restock the partner with a fresh Spark-written Iceberg snapshot."""
     ss.viral_job = None
     ss.ops_bq = {}
+    ss.mkt_bq = {}
     if config.publish_mode == "local" or not config.lakehouse_bucket:
         ss.restock = {"state": "SKIPPED", "units": units}
         return
@@ -380,6 +383,7 @@ with ops_tab:
                 max_duration_seconds=config.spike_max_duration_seconds)
             ss.viral_job = ViralJob(catalog, publisher, vcfg).start()
             ss.ops_bq = {}
+            ss.mkt_bq = {}
             ss.restock = None
             st.rerun()
         if b2.button("Stop", disabled=not v_running, key="viral_stop"):
@@ -509,6 +513,94 @@ with ops_tab:
         for i, link in enumerate(links):
             cols[i % len(cols)].link_button(link.label, link.url, width="stretch")
     st.code("Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand.", language=None)
+
+
+# ---------------------------------------------------------------- marketing
+def _marketing_bigquery(job: ViralJob) -> None:
+    if config.publish_mode == "local":
+        return
+    cache = ss.mkt_bq
+    now = datetime.now(timezone.utc)
+    if cache.get("at") and (now - cache["at"]).total_seconds() < 10:
+        return
+    cache["at"] = now
+    for key, sql in (("referrer", by_referrer_sql(config)), ("postcode", by_postcode_sql(config))):
+        try:
+            cache[key] = run_query(config, sql, {"viral_id": job.viral_id})
+            cache.pop(f"{key}_error", None)
+        except Exception as exc:
+            cache[f"{key}_error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
+
+
+with marketing_tab:
+    mjob: ViralJob = ss.viral_job
+    m_polling = bool(mjob and (mjob.is_running or mjob.seconds_since_end < 60))
+
+    @st.fragment(run_every=5.0 if m_polling else None)
+    def marketing_live() -> None:
+        job: ViralJob = ss.viral_job
+        if job is None:
+            st.caption("Press **Go viral** on the Ops tab; traffic, revenue and actions for the campaign appear here.")
+            return
+        snap = job.snapshot()
+        _marketing_bigquery(job)
+        mk = ss.mkt_bq
+        price = float(job.listing.listing_price)
+        bq_risk = (ss.ops_bq.get("risk") or [None])[0]
+        level = bq_risk["risk_level"] if bq_risk else risk_level(snap["projected_units"], snap["cart_units"])
+        from_bq = bool(mk.get("referrer")) and bool(mk.get("postcode"))
+        rows = ({key: mk[key] for key in ("referrer", "postcode")} if from_bq
+                else simulator_rows(snap, price, level))
+        t = totals(rows["referrer"])
+
+        st.markdown(f"**{snap['description']}** on the YeYo Marketplace ({snap['seller_name']}), "
+                    f"campaign `{snap['viral_id']}`")
+        k = st.columns(5)
+        k[0].metric("Sessions", f"{t['sessions']:,.0f}")
+        k[1].metric("From TikTok", f"{t['tiktok_share']:.0%}")
+        k[2].metric("Conversion", f"{t['conversion']:.1%}")
+        k[3].metric("Revenue", _money(t["revenue"]))
+        k[4].metric("Revenue at risk (waitlist)", _money(t["revenue_at_risk"]))
+
+        if level == "OK":
+            st.success("Demand is converting and partner stock is OK: scale TikTok and Shopping spend while "
+                       "CPCs are still low.")
+        else:
+            sub = _substitute_product(snap["omni_item_id"])
+            st.error(f"Pause ads that send shoppers to listing {snap['listing_id']}: the partner is "
+                     f"{'OVERSOLD' if level == 'OVERSOLD' else 'about to oversell'}. Geo-target "
+                     f"\"collect in store today\" where a store has stock"
+                     + (f", and switch the rest of the budget to **{sub.description}**." if sub else "."),
+                     icon="📣")
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Funnel**")
+            st.bar_chart(
+                {"stage": ["1 Page views", "2 Added to cart", "3 Purchased", "4 Waitlisted"],
+                 "units": [t["page_views"], t["cart_units"], t["purchase_units"], t["waitlist_units"]]},
+                x="stage", y="units", horizontal=True)
+        with right:
+            st.markdown("**Sessions by traffic source**")
+            if rows["referrer"]:
+                st.bar_chart({"referrer": [r["referrer"] for r in rows["referrer"]],
+                              "sessions": [float(r["sessions"]) for r in rows["referrer"]]},
+                             x="referrer", y="sessions", horizontal=True)
+
+        st.markdown("**Demand by postcode and next best action**")
+        st.dataframe(
+            [{"Postcode": r["postal_code"], "Sessions": r["sessions"], "Conversion": f"{float(r['conversion'] or 0):.1%}",
+              "Revenue": _money(r["revenue"]), "Revenue at risk": _money(r["revenue_at_risk"]),
+              "Nearest store with stock": r["nearest_store"] or "-",
+              "Next best action": r["next_best_action"]} for r in rows["postcode"]],
+            hide_index=True, width="stretch")
+        st.caption(f"Source: {'BigQuery ' + config.marketing_view if from_bq else 'simulator (BigQuery not available)'} "
+                   f"(clickstream landed through Pub/Sub, oversell view, stock by store).")
+        for key in ("referrer_error", "postcode_error"):
+            if mk.get(key):
+                st.caption(f"BigQuery {key.split('_')[0]}: {mk[key]}")
+
+    marketing_live()
 
 # ---------------------------------------------------------------- log
 with log_tab:

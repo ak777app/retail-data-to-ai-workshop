@@ -93,6 +93,57 @@ FROM snap
 LEFT JOIN demand AS d USING (listing_id)
 LEFT JOIN clicks AS c USING (listing_id);
 
+-- Marketing view of the viral moment: traffic source, funnel, revenue and revenue at risk
+-- (waitlist) by postcode, the YeYo store in the same ZIP3 area with stock, and a next best action.
+CREATE OR REPLACE VIEW capstone_ds.vw_marketing_viral AS
+WITH clicks AS (
+  SELECT
+    viral_id,
+    marketplace_listing_id AS listing_id,
+    omni_item_id,
+    referrer,
+    postal_code,
+    COUNT(DISTINCT session_id) AS sessions,
+    COUNTIF(event_type = 'page_view') AS page_views,
+    SUM(IF(event_type = 'add_to_cart', quantity, 0)) AS cart_units,
+    COUNTIF(event_type = 'purchase') AS purchase_sessions,
+    SUM(IF(event_type = 'purchase', quantity, 0)) AS purchase_units,
+    SUM(IF(event_type = 'purchase', quantity * listing_price, 0)) AS revenue,
+    SUM(IF(event_type = 'waitlist_join', quantity, 0)) AS waitlist_units,
+    SUM(IF(event_type = 'waitlist_join', quantity * listing_price, 0)) AS revenue_at_risk,
+    MAX(publish_time) AS last_event_ts
+  FROM capstone_ds.clickstream_events
+  WHERE publish_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
+  GROUP BY viral_id, listing_id, omni_item_id, referrer, postal_code
+),
+stores AS (
+  SELECT s.omni_item_id, SUBSTR(CAST(l.zip_code AS STRING), 1, 3) AS zip3, l.location_name, s.quantity_on_hand
+  FROM capstone_ds.stock_master_location AS s
+  JOIN capstone_ds.location_master AS l USING (location_id)
+  WHERE l.location_type = 'Store'
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY s.omni_item_id, s.location_id ORDER BY s.stock_date DESC) = 1
+),
+nearest AS (
+  SELECT omni_item_id, zip3,
+         ARRAY_AGG(STRUCT(location_name, quantity_on_hand) ORDER BY quantity_on_hand DESC LIMIT 1)[OFFSET(0)] AS store
+  FROM stores
+  WHERE quantity_on_hand > 0
+  GROUP BY omni_item_id, zip3
+)
+SELECT
+  c.*,
+  r.risk_level,
+  n.store.location_name AS nearest_store,
+  n.store.quantity_on_hand AS nearest_store_units,
+  CASE
+    WHEN IFNULL(r.risk_level, 'OK') = 'OK' THEN 'Scale: raise bids while CPCs are low'
+    WHEN n.store.location_name IS NOT NULL THEN CONCAT('Geo-target "collect in store today" at ', n.store.location_name)
+    ELSE 'Swap creative to the own-brand substitute'
+  END AS next_best_action
+FROM clicks AS c
+LEFT JOIN capstone_ds.vw_oversell_risk AS r USING (listing_id)
+LEFT JOIN nearest AS n ON n.omni_item_id = c.omni_item_id AND n.zip3 = SUBSTR(c.postal_code, 1, 3);
+
 -- Alert log written by the storefront Ops tab (INSERT ... SELECT from the view),
 -- so Dataplex lineage records clickstream + orders + partner Iceberg -> alerts.
 CREATE TABLE IF NOT EXISTS capstone_ds.oversell_alerts (

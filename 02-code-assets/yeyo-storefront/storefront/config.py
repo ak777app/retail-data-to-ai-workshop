@@ -32,7 +32,7 @@ CHANNEL_ONLINE = "online"
 CHANNEL_MARKETPLACE = "marketplace"
 CHANNELS = (CHANNEL_IN_STORE, CHANNEL_ONLINE, CHANNEL_MARKETPLACE)
 
-CLICKSTREAM_EVENT_TYPES = ("page_view", "add_to_cart", "waitlist_join")
+CLICKSTREAM_EVENT_TYPES = ("page_view", "add_to_cart", "waitlist_join", "purchase")
 
 
 def is_clickstream_event(event: dict) -> bool:
@@ -77,6 +77,7 @@ class Config:
     clickstream_topic: str = "yeyo-clickstream"
     clickstream_table: str = "clickstream_events"
     oversell_view: str = "vw_oversell_risk"
+    marketing_view: str = "vw_marketing_viral"
     oversell_alerts_table: str = "oversell_alerts"
     stock_location_table: str = "stock_master_location"
     partner_lake_dataset: str = "yeyo_partner_lake"
@@ -156,6 +157,7 @@ def load_config(env_file: Optional[os.PathLike] = None) -> Config:
         clickstream_topic=_env("CLICKSTREAM_TOPIC", "yeyo-clickstream"),
         clickstream_table=_env("BQ_CLICKSTREAM_TABLE", "clickstream_events"),
         oversell_view=_env("BQ_OVERSELL_VIEW", "vw_oversell_risk"),
+        marketing_view=_env("BQ_MARKETING_VIEW", "vw_marketing_viral"),
         oversell_alerts_table=_env("BQ_OVERSELL_ALERTS_TABLE", "oversell_alerts"),
         stock_location_table=_env("BQ_STOCK_LOCATION_TABLE", "stock_master_location"),
         partner_lake_dataset=_env("PARTNER_LAKE_DATASET", "yeyo_partner_lake"),

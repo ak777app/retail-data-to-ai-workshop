@@ -37,6 +37,7 @@ from .events import (
     EVENT_TYPE_ADD_TO_CART,
     EVENT_TYPE_ORDER_PLACED,
     EVENT_TYPE_PAGE_VIEW,
+    EVENT_TYPE_PURCHASE,
     EVENT_TYPE_WAITLIST_JOIN,
     SCHEMA_VERSION,
     CartLine,
@@ -90,6 +91,8 @@ def build_clickstream_event(
     customer_id: Optional[str] = None,
     quantity: int = 0,
     listing_stock_status: Optional[str] = None,
+    referrer: Optional[str] = None,
+    postal_code: Optional[str] = None,
 ) -> Dict:
     product = catalog.product(listing.omni_item_id)
     seller = catalog.sellers[listing.seller_id]
@@ -112,8 +115,8 @@ def build_clickstream_event(
         "listing_price": float(listing.listing_price),
         "listing_stock_status": listing_stock_status or listing.stock_status,
         "quantity": int(quantity),
-        "referrer": rng.choice(REFERRERS),
-        "postal_code": rng.choice(POSTAL_CODES),
+        "referrer": referrer or rng.choice(REFERRERS),
+        "postal_code": postal_code or rng.choice(POSTAL_CODES),
     }
 
 
@@ -148,6 +151,8 @@ class ViralJob:
         self.failed = 0
         self.errors: List[str] = []
         self.buckets: Dict[int, Counter] = {}
+        self.by_referrer: Dict[str, Counter] = {}
+        self.by_postal: Dict[str, Counter] = {}
         self._started_at: Optional[float] = None
         self._ended_at: Optional[float] = None
         self._schedule = sorted(config.duration_seconds * (self._rng.random() ** 0.5)
@@ -185,7 +190,8 @@ class ViralJob:
         session = uuid.uuid4().hex[:16]
         customer = rng.choice(self.catalog.customer_ids) if self.catalog.customer_ids else None
         common = dict(rng=rng, event_ts=ts, viral_id=self.viral_id, session_id=session, customer_id=customer,
-                      listing_stock_status="IN_STOCK")
+                      listing_stock_status="IN_STOCK", referrer=rng.choice(REFERRERS),
+                      postal_code=rng.choice(POSTAL_CODES))
         events = [build_clickstream_event(self.catalog, self.listing, EVENT_TYPE_PAGE_VIEW, **common)]
         if rng.random() >= cfg.cart_rate:
             return events
@@ -202,6 +208,8 @@ class ViralJob:
                 self.catalog, [CartLine(self.product, qty, self.listing)], channel=CHANNEL_MARKETPLACE,
                 customer_id=customer, event_source=EVENT_SOURCE_VIRAL, order_ts=ts, spike_id=self.viral_id,
             ))
+            events.append(build_clickstream_event(self.catalog, self.listing, EVENT_TYPE_PURCHASE,
+                                                  quantity=qty, **common))
             self.units_ordered += qty
         return events
 
@@ -210,6 +218,11 @@ class ViralJob:
         for e in events:
             self.counts[e["event_type"]] += 1
             bucket[e["event_type"]] += 1
+            if "referrer" in e:
+                for dim, key in ((self.by_referrer, e["referrer"]), (self.by_postal, e["postal_code"])):
+                    c = dim.setdefault(key, Counter())
+                    c[e["event_type"]] += 1
+                    c[f"{e['event_type']}_units"] += e["quantity"]
 
     def _run(self) -> None:
         self.status = STATUS_RUNNING
@@ -272,6 +285,9 @@ class ViralJob:
                 "add_to_cart": self.counts[EVENT_TYPE_ADD_TO_CART],
                 "orders": self.counts[EVENT_TYPE_ORDER_PLACED],
                 "waitlist": self.counts[EVENT_TYPE_WAITLIST_JOIN],
+                "purchases": self.counts[EVENT_TYPE_PURCHASE],
+                "by_referrer": {k: dict(c) for k, c in self.by_referrer.items()},
+                "by_postal": {k: dict(c) for k, c in self.by_postal.items()},
                 "units_ordered": self.units_ordered,
                 "partner_units": self.config.partner_units,
                 "projected_units": self.projected_units,

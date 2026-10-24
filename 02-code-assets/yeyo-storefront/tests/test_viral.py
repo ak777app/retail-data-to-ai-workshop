@@ -19,6 +19,8 @@ from pathlib import Path
 from storefront.catalog import SAMPLE_DATA_DIR, _read_csv, load_bigquery_catalog
 from storefront.ops import CONSOLE, demo_links, group_links, restock_batch, risk_level, submit_restock
 from storefront.publisher import BigQueryPublisher, PubSubPublisher, event_attributes, event_to_row
+from storefront.marketing import (ACTION_SCALE, ACTION_STORE, ACTION_SUBSTITUTE, by_postcode_sql,
+                                  by_referrer_sql, next_best_action, simulator_rows, totals)
 from storefront.viral import ViralConfig, ViralJob, build_clickstream_event, viral_listing
 from test_publisher_and_spike import FakeBigQueryClient, FakePubSubClient
 
@@ -43,7 +45,8 @@ def test_viral_routes_clickstream_and_orders_to_their_topics(catalog, config):
     orders = by_topic[config.topic_path]
     clicks = by_topic[config.clickstream_topic_path]
     assert len(orders) == snap["orders"] > 0
-    assert len(clicks) == snap["page_views"] + snap["add_to_cart"] + snap["waitlist"]
+    assert len(clicks) == snap["page_views"] + snap["add_to_cart"] + snap["waitlist"] + snap["purchases"]
+    assert snap["purchases"] == snap["orders"]
     assert snap["page_views"] == 400
     for msg, attrs in orders:
         assert attrs["channel"] == "marketplace" and msg["event_source"] == "viral_simulator"
@@ -199,3 +202,38 @@ def test_console_links_use_current_paths(config):
     assert any("/dataplex/govern/data-profiling-and-quality?" in u for u in urls)
     assert any("/biglake?" in u for u in urls)
     assert not any("/dataplex/search?" in u or "/bigquery/lakehouse" in u for u in urls)
+
+
+def test_session_events_share_referrer_and_postcode(catalog, config):
+    client = FakePubSubClient()
+    _run(catalog, PubSubPublisher(config, client=client))
+    sessions = {}
+    for topic, msg, _ in client.messages:
+        if topic == config.clickstream_topic_path:
+            sessions.setdefault(msg["session_id"], set()).add((msg["referrer"], msg["postal_code"]))
+    assert sessions and all(len(v) == 1 for v in sessions.values())
+
+
+def test_marketing_rows_from_simulator(catalog, config):
+    job = _run(catalog, PubSubPublisher(config, client=FakePubSubClient()))
+    snap = job.snapshot()
+    rows = simulator_rows(snap, 10.0, "OVERSOLD")
+    t = totals(rows["referrer"])
+    assert t["sessions"] == snap["page_views"] == totals(rows["postcode"])["sessions"]
+    assert t["purchase_units"] == snap["units_ordered"] and t["revenue"] == snap["units_ordered"] * 10.0
+    assert t["waitlist_units"] > 0 and 0 < t["tiktok_share"] < 1
+    assert {r["next_best_action"] for r in rows["postcode"]} == {ACTION_SUBSTITUTE}
+
+
+def test_next_best_action_matches_view():
+    assert next_best_action("OK", "Chicago store") == ACTION_SCALE
+    assert next_best_action("OVERSOLD", "Chicago store") == ACTION_STORE + "Chicago store"
+    assert next_best_action("AT_RISK", None) == ACTION_SUBSTITUTE
+    sql = (ROOT / "sql" / "viral_moment.sql").read_text()
+    for text in (ACTION_SCALE, ACTION_STORE, ACTION_SUBSTITUTE):
+        assert f"'{text}" in sql
+
+
+def test_marketing_sql_targets_view(config):
+    for sql in (by_referrer_sql(config), by_postcode_sql(config)):
+        assert "`test-project.capstone_ds.vw_marketing_viral`" in sql and "@viral_id" in sql
