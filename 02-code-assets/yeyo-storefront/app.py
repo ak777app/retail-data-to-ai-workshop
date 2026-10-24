@@ -30,6 +30,7 @@ from storefront.publisher import AutoPublisher, BasePublisher, create_publisher
 from storefront.ops import (
     demo_links,
     group_links,
+    latest_clickstream_sql,
     oversell_sql,
     per_minute_sql,
     record_alert_sql,
@@ -319,7 +320,7 @@ def _ops_bigquery(job: ViralJob) -> None:
     cache["at"] = now
     params = {"listing_id": job.listing.listing_id, "omni_item_id": job.product.omni_item_id}
     for key, sql in (("risk", oversell_sql(config)), ("minutes", per_minute_sql(config)),
-                     ("stores", store_stock_sql(config))):
+                     ("stores", store_stock_sql(config)), ("latest", latest_clickstream_sql(config))):
         try:
             cache[key] = run_query(config, sql, params)
             cache.pop(f"{key}_error", None)
@@ -483,12 +484,16 @@ with ops_tab:
                     c_b.caption("Branch stock appears here from BigQuery (stock_master_location).")
                 if projected <= 0 and sub is not None:
                     st.warning(f"Partner stock is gone: budget moves to **{sub.description}** (`{sub.omni_item_id}`).")
-            for key in ("risk_error", "minutes_error", "stores_error", "alert_error"):
+            for key in ("risk_error", "minutes_error", "stores_error", "latest_error", "alert_error"):
                 if bq.get(key):
                     st.caption(f"BigQuery {key.split('_')[0]}: {bq[key]}")
             if bq.get("minutes"):
                 with st.expander("BigQuery clickstream per minute (landed rows)"):
                     st.dataframe(bq["minutes"], hide_index=True, width="stretch")
+            if bq.get("latest"):
+                with st.expander(f"Latest Pub/Sub events landed in BigQuery ({config.clickstream_table})",
+                                 expanded=True):
+                    st.dataframe(bq["latest"], hide_index=True, width="stretch")
             for err in snap["errors"]:
                 st.error(err)
             if (not job.is_running and v_running) or (polling and not v_running and job.seconds_since_end >= 60):

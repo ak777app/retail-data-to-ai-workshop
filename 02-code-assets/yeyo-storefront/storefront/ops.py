@@ -17,11 +17,12 @@
 import time
 import uuid
 from typing import Dict, List, NamedTuple, Optional, Tuple
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from .config import Config
 
 CONSOLE = "https://console.cloud.google.com"
+LOOKER_CREATE = "https://datastudio.google.com/reporting/create"
 
 
 class DemoLink(NamedTuple):
@@ -35,11 +36,27 @@ def _bq_table_url(project: str, dataset: str, table: str) -> str:
 
 
 def _search_url(project: str, query: str) -> str:
-    return f"{CONSOLE}/dataplex/search?project={project}&q={quote(query)}"
+    return f"{CONSOLE}/dataplex/dp-search?project={project}&q={quote(query)}"
+
+
+def looker_create_url(config: Config) -> str:
+    """Linking API URL for a new Looker Studio report on the oversell view (default report template)."""
+    params = {
+        "r.reportName": "YeYo oversell alert",
+        "ds.connector": "bigQuery",
+        "ds.type": "TABLE",
+        "ds.projectId": config.project_id,
+        "ds.datasetId": config.bq_dataset,
+        "ds.tableId": config.oversell_view,
+        "ds.datasourceName": config.oversell_view,
+    }
+    return f"{LOOKER_CREATE}?{urlencode(params)}"
 
 
 def demo_links(config: Config) -> List[DemoLink]:
     p, ds = config.project_id, config.bq_dataset
+    looker_label = ("Looker Studio: oversell report" if config.looker_report_url
+                    else "Looker Studio: new report on the oversell view")
     links = [
         DemoLink("2 · Goes viral", f"Pub/Sub topic {config.clickstream_topic}",
                  f"{CONSOLE}/cloudpubsub/topic/detail/{config.clickstream_topic}?project={p}"),
@@ -53,7 +70,8 @@ def demo_links(config: Config) -> List[DemoLink]:
         DemoLink("3a · Oversell alert", f"BigQuery {config.oversell_alerts_table}",
                  _bq_table_url(p, ds, config.oversell_alerts_table)),
         DemoLink("3a · Oversell alert", f"Data quality scan {config.dq_scan_id}",
-                 f"{CONSOLE}/dataplex/govern/quality?project={p}"),
+                 f"{CONSOLE}/dataplex/govern/data-profiling-and-quality?project={p}"),
+        DemoLink("3a · Oversell alert", looker_label, config.looker_report_url or looker_create_url(config)),
         DemoLink("3b · CDO: lineage & catalog", f"Lineage: {config.oversell_view} (open the Lineage tab)",
                  _bq_table_url(p, ds, config.oversell_view)),
         DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: BEA-3001 assets",
@@ -63,7 +81,7 @@ def demo_links(config: Config) -> List[DemoLink]:
         DemoLink("3c · Engineering: Spark + Iceberg", "Spark batch jobs (Serverless for Apache Spark)",
                  f"{CONSOLE}/dataproc/batches?project={p}"),
         DemoLink("3c · Engineering: Spark + Iceberg", "Lakehouse runtime catalog",
-                 f"{CONSOLE}/bigquery/lakehouse?project={p}"),
+                 f"{CONSOLE}/biglake?project={p}"),
     ]
     if config.lakehouse_bucket:
         links.append(DemoLink("3c · Engineering: Spark + Iceberg", "Cloud Storage: Parquet + Iceberg metadata",
@@ -105,6 +123,15 @@ FROM `{config.fq_table(config.clickstream_table)}`
 WHERE publish_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 MINUTE)
   AND marketplace_listing_id = @listing_id
 GROUP BY minute ORDER BY minute"""
+
+
+def latest_clickstream_sql(config: Config, limit: int = 10) -> str:
+    return f"""
+SELECT publish_time, message_id, subscription_name, event_type, session_id, quantity, viral_id
+FROM `{config.fq_table(config.clickstream_table)}`
+WHERE publish_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
+  AND marketplace_listing_id = @listing_id
+ORDER BY publish_time DESC LIMIT {int(limit)}"""
 
 
 def store_stock_sql(config: Config) -> str:
