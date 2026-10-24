@@ -179,3 +179,11 @@ class _TimeoutOrdersPublisher(_FailOrdersPublisher):
 def test_timed_out_orders_keep_partner_stock_consumed(catalog):
     job = _run(catalog, _TimeoutOrdersPublisher())
     assert job.snapshot()["units_ordered"] > 0
+
+
+def test_console_links_use_current_paths(config):
+    urls = [link.url for link in demo_links(config)]
+    assert any("/dataplex/dp-search?" in u for u in urls)
+    assert any("/dataplex/govern/data-profiling-and-quality?" in u for u in urls)
+    assert any("/biglake?" in u for u in urls)
+    assert not any("/dataplex/search?" in u or "/bigquery/lakehouse" in u for u in urls)

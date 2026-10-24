@@ -35,7 +35,7 @@ def _bq_table_url(project: str, dataset: str, table: str) -> str:
 
 
 def _search_url(project: str, query: str) -> str:
-    return f"{CONSOLE}/dataplex/search?project={project}&q={quote(query)}"
+    return f"{CONSOLE}/dataplex/dp-search?project={project}&q={quote(query)}"
 
 
 def demo_links(config: Config) -> List[DemoLink]:
@@ -53,7 +53,7 @@ def demo_links(config: Config) -> List[DemoLink]:
         DemoLink("3a · Oversell alert", f"BigQuery {config.oversell_alerts_table}",
                  _bq_table_url(p, ds, config.oversell_alerts_table)),
         DemoLink("3a · Oversell alert", f"Data quality scan {config.dq_scan_id}",
-                 f"{CONSOLE}/dataplex/govern/quality?project={p}"),
+                 f"{CONSOLE}/dataplex/govern/data-profiling-and-quality?project={p}"),
         DemoLink("3b · CDO: lineage & catalog", f"Lineage: {config.oversell_view} (open the Lineage tab)",
                  _bq_table_url(p, ds, config.oversell_view)),
         DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: BEA-3001 assets",
@@ -63,7 +63,7 @@ def demo_links(config: Config) -> List[DemoLink]:
         DemoLink("3c · Engineering: Spark + Iceberg", "Spark batch jobs (Serverless for Apache Spark)",
                  f"{CONSOLE}/dataproc/batches?project={p}"),
         DemoLink("3c · Engineering: Spark + Iceberg", "Lakehouse runtime catalog",
-                 f"{CONSOLE}/bigquery/lakehouse?project={p}"),
+                 f"{CONSOLE}/biglake?project={p}"),
     ]
     if config.lakehouse_bucket:
         links.append(DemoLink("3c · Engineering: Spark + Iceberg", "Cloud Storage: Parquet + Iceberg metadata",
@@ -105,6 +105,15 @@ FROM `{config.fq_table(config.clickstream_table)}`
 WHERE publish_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 MINUTE)
   AND marketplace_listing_id = @listing_id
 GROUP BY minute ORDER BY minute"""
+
+
+def latest_clickstream_sql(config: Config, limit: int = 10) -> str:
+    return f"""
+SELECT publish_time, message_id, subscription_name, event_type, session_id, quantity, viral_id
+FROM `{config.fq_table(config.clickstream_table)}`
+WHERE publish_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
+  AND marketplace_listing_id = @listing_id
+ORDER BY publish_time DESC LIMIT {int(limit)}"""
 
 
 def store_stock_sql(config: Config) -> str:
