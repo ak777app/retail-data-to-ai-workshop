@@ -133,7 +133,17 @@ Set `LAKEHOUSE_BUCKET=$BUCKET` (and optionally `AGENT_URL` to your `adk web` or 
 - the partner-stock gauge (from `vw_oversell_risk`, refreshed every 10 seconds) and the red oversell alert, which is also written to `oversell_alerts`;
 - a simulated marketing card: keywords, branches with stock for "collect in store today", and the substitute product once partner stock is gone;
 - live vs. next-day batch report for the same orders;
-- **Demo links**: Pub/Sub topics, BigQuery tables, the data quality scan, lineage, the Knowledge Catalog entry for the Iceberg table, Spark batches and the Cloud Storage folder.
+- **Demo links**: Pub/Sub topics, BigQuery tables, the data quality scan, a Looker Studio report, lineage, the Knowledge Catalog entry for the Iceberg table, Spark batches and the Cloud Storage folder.
+- **Latest Pub/Sub events landed in BigQuery**: the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, to show the chart is backed by real data.
+
+**Looker Studio (optional, alongside the Ops tab).** Demo links > **Looker Studio: new report on the oversell view** opens a new report (Linking API) already connected to `vw_oversell_risk`. Then:
+
+1. Add a scorecard for `partner_units`, a scorecard for `projected_units` and a table with `listing_id`, `risk_level`, `units_ordered_since_snapshot` and `partner_snapshot_ts`. Give `risk_level` conditional formatting: red when it equals `OVERSOLD`.
+2. **Add data** > BigQuery > `capstone_ds.clickstream_events`, and add a time series of record count by `publish_time` (minute) broken down by `event_type`.
+3. **Resource** > **Manage added data sources** > edit each source > **Data freshness** > every 1 minute (the BigQuery default is 12 hours). Press **Refresh data** during the demo for an immediate update.
+4. Save the report, then set `LOOKER_REPORT_URL` to its URL (`gcloud run services update yeyo-storefront --update-env-vars LOOKER_REPORT_URL=...`) so the button opens it.
+
+The Ops tab polls BigQuery every 10 seconds; the report is at most a minute behind, so show the alert firing on the Ops tab and the report as the dashboard marketing already uses on the same view.
 
 Lineage: open `vw_oversell_risk` > **Lineage**. It shows `clickstream_events`, `marketplace_orders` and the Spark-written Iceberg table `partner_stock` feeding the view. Lineage shows up a few minutes after the view is created, so build it well before the demo.
 

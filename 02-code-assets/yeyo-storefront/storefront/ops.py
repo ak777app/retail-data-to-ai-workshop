@@ -17,11 +17,12 @@
 import time
 import uuid
 from typing import Dict, List, NamedTuple, Optional, Tuple
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from .config import Config
 
 CONSOLE = "https://console.cloud.google.com"
+LOOKER_CREATE = "https://datastudio.google.com/reporting/create"
 
 
 class DemoLink(NamedTuple):
@@ -38,8 +39,24 @@ def _search_url(project: str, query: str) -> str:
     return f"{CONSOLE}/dataplex/dp-search?project={project}&q={quote(query)}"
 
 
+def looker_create_url(config: Config) -> str:
+    """Linking API URL for a new Looker Studio report on the oversell view (default report template)."""
+    params = {
+        "r.reportName": "YeYo oversell alert",
+        "ds.connector": "bigQuery",
+        "ds.type": "TABLE",
+        "ds.projectId": config.project_id,
+        "ds.datasetId": config.bq_dataset,
+        "ds.tableId": config.oversell_view,
+        "ds.datasourceName": config.oversell_view,
+    }
+    return f"{LOOKER_CREATE}?{urlencode(params)}"
+
+
 def demo_links(config: Config) -> List[DemoLink]:
     p, ds = config.project_id, config.bq_dataset
+    looker_label = ("Looker Studio: oversell report" if config.looker_report_url
+                    else "Looker Studio: new report on the oversell view")
     links = [
         DemoLink("2 · Goes viral", f"Pub/Sub topic {config.clickstream_topic}",
                  f"{CONSOLE}/cloudpubsub/topic/detail/{config.clickstream_topic}?project={p}"),
@@ -54,6 +71,7 @@ def demo_links(config: Config) -> List[DemoLink]:
                  _bq_table_url(p, ds, config.oversell_alerts_table)),
         DemoLink("3a · Oversell alert", f"Data quality scan {config.dq_scan_id}",
                  f"{CONSOLE}/dataplex/govern/data-profiling-and-quality?project={p}"),
+        DemoLink("3a · Oversell alert", looker_label, config.looker_report_url or looker_create_url(config)),
         DemoLink("3b · CDO: lineage & catalog", f"Lineage: {config.oversell_view} (open the Lineage tab)",
                  _bq_table_url(p, ds, config.oversell_view)),
         DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: BEA-3001 assets",

@@ -17,7 +17,7 @@ from types import SimpleNamespace
 from pathlib import Path
 
 from storefront.catalog import SAMPLE_DATA_DIR, _read_csv, load_bigquery_catalog
-from storefront.ops import demo_links, group_links, restock_batch, risk_level, submit_restock
+from storefront.ops import CONSOLE, demo_links, group_links, restock_batch, risk_level, submit_restock
 from storefront.publisher import BigQueryPublisher, PubSubPublisher, event_attributes, event_to_row
 from storefront.viral import ViralConfig, ViralJob, build_clickstream_event, viral_listing
 from test_publisher_and_spike import FakeBigQueryClient, FakePubSubClient
@@ -95,12 +95,24 @@ def test_risk_level_matches_view_rule():
 
 def test_demo_links_use_config(config, monkeypatch):
     links = demo_links(config)
-    assert all("project=test-project" in link.url for link in links)
+    assert all("project=test-project" in link.url for link in links if link.url.startswith(CONSOLE))
     assert not any("storage/browser" in link.url for link in links)
     assert "3c · Engineering: Spark + Iceberg" in group_links(links)
     bucketed = demo_links(config.__class__(**{**config.__dict__, "lakehouse_bucket": "b1", "agent_url": "http://a"}))
     assert any("storage/browser/b1/iceberg" in link.url for link in bucketed)
     assert bucketed[-1].url == "http://a"
+
+
+def test_looker_link_targets_oversell_view(config):
+    from urllib.parse import parse_qs, urlparse
+    looker = [link for link in demo_links(config) if "Looker" in link.label]
+    assert len(looker) == 1 and looker[0].scene == "3a · Oversell alert"
+    qs = {k: v[0] for k, v in parse_qs(urlparse(looker[0].url).query).items()}
+    assert qs["ds.connector"] == "bigQuery" and qs["ds.type"] == "TABLE"
+    assert (qs["ds.projectId"], qs["ds.datasetId"], qs["ds.tableId"]) == ("test-project", config.bq_dataset,
+                                                                          config.oversell_view)
+    saved = demo_links(config.__class__(**{**config.__dict__, "looker_report_url": "https://lookerstudio.google.com/r"}))
+    assert [link.url for link in saved if "Looker" in link.label] == ["https://lookerstudio.google.com/r"]
 
 
 def test_no_alloydb_dependency():
