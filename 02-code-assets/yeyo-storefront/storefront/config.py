@@ -32,6 +32,13 @@ CHANNEL_ONLINE = "online"
 CHANNEL_MARKETPLACE = "marketplace"
 CHANNELS = (CHANNEL_IN_STORE, CHANNEL_ONLINE, CHANNEL_MARKETPLACE)
 
+CLICKSTREAM_EVENT_TYPES = ("page_view", "add_to_cart", "waitlist_join")
+
+
+def is_clickstream_event(event: dict) -> bool:
+    return event.get("event_type") in CLICKSTREAM_EVENT_TYPES
+
+
 CATALOG_SOURCES = ("sample", "bigquery", "auto")
 PUBLISH_MODES = ("auto", "pubsub", "bigquery", "local")
 
@@ -67,10 +74,36 @@ class Config:
     spike_max_orders: int
     spike_default_duration_seconds: int
     spike_max_duration_seconds: int
+    clickstream_topic: str = "yeyo-clickstream"
+    clickstream_table: str = "clickstream_events"
+    oversell_view: str = "vw_oversell_risk"
+    oversell_alerts_table: str = "oversell_alerts"
+    stock_location_table: str = "stock_master_location"
+    partner_lake_dataset: str = "yeyo_partner_lake"
+    partner_stock_table: str = "partner_stock"
+    lakehouse_bucket: str = ""
+    dq_scan_id: str = "yeyo-oversell-dq"
+    agent_url: str = ""
+    viral_listing_id: str = "LST-0017"
+    viral_partner_units: int = 600
+    viral_page_views: int = 3000
+    viral_duration_seconds: int = 120
 
     @property
     def topic_path(self) -> str:
         return f"projects/{self.project_id}/topics/{self.pubsub_topic}"
+
+    @property
+    def clickstream_topic_path(self) -> str:
+        return f"projects/{self.project_id}/topics/{self.clickstream_topic}"
+
+    def topic_path_for(self, event: dict) -> str:
+        return self.clickstream_topic_path if is_clickstream_event(event) else self.topic_path
+
+    def table_for_event(self, event: dict) -> str:
+        if is_clickstream_event(event):
+            return self.fq_table(self.clickstream_table)
+        return self.orders_table_for_channel(event["channel"])
 
     def fq_table(self, table: str) -> str:
         return f"{self.project_id}.{self.bq_dataset}.{table}"
@@ -117,4 +150,18 @@ def load_config(env_file: Optional[os.PathLike] = None) -> Config:
         spike_max_orders=spike_max_orders,
         spike_default_duration_seconds=min(max(0, _env_int("SPIKE_DEFAULT_DURATION_SECONDS", 60)), spike_max_duration),
         spike_max_duration_seconds=spike_max_duration,
+        clickstream_topic=_env("CLICKSTREAM_TOPIC", "yeyo-clickstream"),
+        clickstream_table=_env("BQ_CLICKSTREAM_TABLE", "clickstream_events"),
+        oversell_view=_env("BQ_OVERSELL_VIEW", "vw_oversell_risk"),
+        oversell_alerts_table=_env("BQ_OVERSELL_ALERTS_TABLE", "oversell_alerts"),
+        stock_location_table=_env("BQ_STOCK_LOCATION_TABLE", "stock_master_location"),
+        partner_lake_dataset=_env("PARTNER_LAKE_DATASET", "yeyo_partner_lake"),
+        partner_stock_table=_env("PARTNER_STOCK_TABLE", "partner_stock"),
+        lakehouse_bucket=_env("LAKEHOUSE_BUCKET", ""),
+        dq_scan_id=_env("DQ_SCAN_ID", "yeyo-oversell-dq"),
+        agent_url=_env("AGENT_URL", ""),
+        viral_listing_id=_env("VIRAL_LISTING_ID", "LST-0017"),
+        viral_partner_units=max(1, _env_int("VIRAL_PARTNER_UNITS", 600)),
+        viral_page_views=max(1, _env_int("VIRAL_PAGE_VIEWS", 3000)),
+        viral_duration_seconds=max(0, _env_int("VIRAL_DURATION_SECONDS", 120)),
     )

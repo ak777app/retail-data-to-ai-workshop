@@ -14,6 +14,7 @@
 
 from pathlib import Path
 
+import streamlit as st
 from streamlit.testing.v1 import AppTest
 
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
@@ -46,3 +47,23 @@ def test_app_places_order_and_runs_spike(monkeypatch, tmp_path):
     job.join(timeout=20)
     assert job.snapshot()["published"] == 20
     assert len((tmp_path / "events.jsonl").read_text().splitlines()) == 22
+
+
+def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
+    events_file = tmp_path / "events.jsonl"
+    monkeypatch.setenv("PUBLISH_MODE", "local")
+    monkeypatch.setenv("CATALOG_SOURCE", "sample")
+    monkeypatch.setenv("LOCAL_EVENTS_FILE", str(events_file))
+    monkeypatch.setenv("VIRAL_PAGE_VIEWS", "200")
+    monkeypatch.setenv("VIRAL_DURATION_SECONDS", "0")
+    monkeypatch.setenv("VIRAL_PARTNER_UNITS", "20")
+    st.cache_resource.clear()
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert [t.label for t in at.tabs][2] == "Ops: viral moment"
+    next(b for b in at.button if b.label == "Go viral").click().run()
+    at.session_state["viral_job"].join(30)
+    at.run()
+    assert not at.exception
+    assert any("OVERSELL" in e.value for e in at.error)
+    lines = events_file.read_text().splitlines()
+    assert sum('"page_view"' in line for line in lines) == 200

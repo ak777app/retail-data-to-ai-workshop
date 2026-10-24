@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Publishes order events to Pub/Sub, with a BigQuery-direct fallback.
+"""Publishes order and clickstream events to Pub/Sub, with a BigQuery-direct fallback.
 
 Every publisher returns a `concurrent.futures.Future` per event so single
 orders and the spike simulator share the same code path.
@@ -84,13 +84,14 @@ class PubSubPublisher(BasePublisher):
                 )
             )
         self._client = client
+        self._config = config
         self.topic_path = config.topic_path
 
     def describe(self) -> str:
         return f"Pub/Sub topic {self.topic_path}"
 
     def publish(self, event: Dict) -> Future:
-        return self._client.publish(self.topic_path, encode_event(event), **event_attributes(event))
+        return self._client.publish(self._config.topic_path_for(event), encode_event(event), **event_attributes(event))
 
 
 def event_to_row(event: Dict, publish_time: Optional[datetime] = None) -> Dict:
@@ -125,7 +126,7 @@ class BigQueryPublisher(BasePublisher):
         futures: List[Optional[Future]] = [None] * len(events)
         by_table: Dict[str, List[int]] = defaultdict(list)
         for i, e in enumerate(events):
-            by_table[self._config.orders_table_for_channel(e["channel"])].append(i)
+            by_table[self._config.table_for_event(e)].append(i)
         for table, idxs in by_table.items():
             rows = [event_to_row(events[i]) for i in idxs]
             try:
