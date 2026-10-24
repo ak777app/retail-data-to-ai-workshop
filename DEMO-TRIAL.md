@@ -69,6 +69,10 @@ BQ_INSTORE_ORDERS_TABLE="instore_orders"
 
 <hr>
 
+**Viral-moment variant (5 minutes):** instead of the allergy spike, open **Ops: viral moment** and press **Go viral**. One marketplace cosmetic, Instant FirmX Temporary Eye Tightener from Glow Lab Beauty, gets TikTok-scale traffic: clickstream and orders stream in live, the Spark-written Iceberg partner feed runs out, and the oversell alert fires while the listing still says "in stock". Setup and talk track: [Module 13](03-lab-manuals/Module-13-YeYo-Viral-Moment.md).
+
+<hr>
+
 ## Step 2 - Watch the events stream into BigQuery
 
 **Module:** [Module 12 section 4-5](03-lab-manuals/Module-12-YeYo-Storefront-UI.md#4-watch-rows-arrive-in-bigquery)

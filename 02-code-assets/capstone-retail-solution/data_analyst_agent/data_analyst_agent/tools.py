@@ -33,7 +33,7 @@ def sql_generator(prompt: str) -> str:
 
     try:
  
-        model = GenerativeModel("gemini-2.5-pro")
+        model = GenerativeModel(constants.MODEL)
         response = model.generate_content(
             prompt, generation_config=constants.GENERATION_CONFIGURATION
         )

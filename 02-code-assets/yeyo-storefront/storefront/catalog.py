@@ -246,7 +246,9 @@ def load_bigquery_catalog(config: Config, client=None) -> Catalog:
 
     known = {p.omni_item_id for p in products}
     if not any(l.omni_item_id in known for l in listings):
-        listings = synthesize_listings(products, sellers)
+        bundled = [l for l in sample.listings if l.omni_item_id in known and l.seller_id in sellers]
+        covered = {l.omni_item_id for l in bundled}
+        listings = bundled + synthesize_listings([p for p in products if p.omni_item_id not in covered], sellers)
 
     return Catalog(
         products=products,

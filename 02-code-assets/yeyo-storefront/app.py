@@ -27,7 +27,19 @@ from storefront.config import CHANNEL_IN_STORE, CHANNEL_MARKETPLACE, CHANNEL_ONL
 from storefront.events import IN_STORE_PAYMENT_TYPES, PAYMENT_TYPES, CartLine, build_order_event
 from storefront.landing import landing_sql, query_landing
 from storefront.publisher import AutoPublisher, BasePublisher, create_publisher
+from storefront.ops import (
+    demo_links,
+    group_links,
+    oversell_sql,
+    per_minute_sql,
+    record_alert_sql,
+    risk_level,
+    run_query,
+    store_stock_sql,
+)
 from storefront.spike import SpikeConfig, SpikeJob
+from storefront.ops import TERMINAL_BATCH_STATES, batch_state, submit_restock
+from storefront.viral import ViralConfig, ViralJob, viral_listing
 
 CHANNEL_LABELS = {
     CHANNEL_IN_STORE: "In-store",
@@ -61,6 +73,9 @@ ss = st.session_state
 ss.setdefault("cart", [])
 ss.setdefault("orders", [])
 ss.setdefault("spike_job", None)
+ss.setdefault("viral_job", None)
+ss.setdefault("restock", None)
+ss.setdefault("ops_bq", {})
 ss.setdefault("channel", CHANNEL_ONLINE)
 
 
@@ -154,7 +169,8 @@ with st.sidebar:
 st.title("YeYo")
 st.caption("Everyday pharmacy, wellness and lifestyle - in-store, online and on the YeYo Marketplace.")
 
-shop_tab, spike_tab, log_tab = st.tabs(["Shop", "Simulate order spike", "Orders & BigQuery landing"])
+shop_tab, spike_tab, ops_tab, log_tab = st.tabs(
+    ["Shop", "Simulate order spike", "Ops: viral moment", "Orders & BigQuery landing"])
 
 # ---------------------------------------------------------------- shop
 with shop_tab:
@@ -282,6 +298,212 @@ with spike_tab:
                 )
 
     spike_progress()
+
+# ---------------------------------------------------------------- ops
+def _substitute_product(omni_item_id: str):
+    hero = catalog.product(omni_item_id)
+    same_type = [p for p in catalog.products if p.omni_item_id != omni_item_id
+                 and p.category == hero.category and p.is_active]
+    own_brand = [p for p in same_type if "YEYO" in (p.brand or "").upper()]
+    return (own_brand or same_type or [None])[0]
+
+
+def _ops_bigquery(job: ViralJob) -> None:
+    """Refresh the BigQuery-backed panels (oversell view, per-minute chart, store stock)."""
+    if config.publish_mode == "local":
+        return
+    cache = ss.ops_bq
+    now = datetime.now(timezone.utc)
+    if cache.get("at") and (now - cache["at"]).total_seconds() < 10:
+        return
+    cache["at"] = now
+    params = {"listing_id": job.listing.listing_id, "omni_item_id": job.product.omni_item_id}
+    for key, sql in (("risk", oversell_sql(config)), ("minutes", per_minute_sql(config)),
+                     ("stores", store_stock_sql(config))):
+        try:
+            cache[key] = run_query(config, sql, params)
+            cache.pop(f"{key}_error", None)
+        except Exception as exc:
+            cache[f"{key}_error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
+    risk = (cache.get("risk") or [{}])[0].get("risk_level")
+    if risk and risk != "OK" and cache.get("alerted") != (job.viral_id, risk):
+        try:
+            run_query(config, record_alert_sql(config), {"listing_id": job.listing.listing_id,
+                                                         "viral_id": job.viral_id})
+            cache["alerted"] = (job.viral_id, risk)
+        except Exception as exc:
+            cache["alert_error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
+
+
+def _reset_demo(units: int) -> None:
+    """Clear the viral run and restock the partner with a fresh Spark-written Iceberg snapshot."""
+    ss.viral_job = None
+    ss.ops_bq = {}
+    if config.publish_mode == "local" or not config.lakehouse_bucket:
+        ss.restock = {"state": "SKIPPED", "units": units}
+        return
+    try:
+        ss.restock = {"name": submit_restock(config, units), "state": "PENDING", "units": units}
+    except Exception as exc:
+        ss.restock = {"state": "FAILED", "units": units, "error": f"{exc.__class__.__name__}: {str(exc)[:200]}"}
+
+
+with ops_tab:
+    try:
+        hero_listing = viral_listing(catalog, config.viral_listing_id)
+    except ValueError as exc:
+        st.error(str(exc))
+        hero_listing = None
+    if hero_listing is not None:
+        hero = catalog.product(hero_listing.omni_item_id)
+        seller = catalog.sellers[hero_listing.seller_id]
+        st.markdown(
+            f"**{hero.description}** (`{hero.omni_item_id}`) from marketplace partner **{seller.seller_name}** "
+            f"(`{hero_listing.listing_id}`, listing says **{hero_listing.stock_status}**). "
+            f"Clickstream goes to `{config.clickstream_topic}`, orders to `{config.pubsub_topic}`."
+        )
+        vjob: ViralJob = ss.viral_job
+        v_running = bool(vjob and vjob.is_running)
+        c1, c2, c3 = st.columns(3)
+        v_units = c1.number_input("Partner units on hand (last feed)", min_value=1, max_value=100000,
+                                  value=config.viral_partner_units, step=50, disabled=v_running, key="viral_units")
+        v_views = c2.number_input("Shoppers landing on the page", min_value=1, max_value=20000,
+                                  value=config.viral_page_views, step=500, disabled=v_running, key="viral_views")
+        v_secs = c3.slider("Viral window (seconds)", 0, config.spike_max_duration_seconds,
+                           min(config.viral_duration_seconds, config.spike_max_duration_seconds), step=10,
+                           disabled=v_running, key="viral_secs")
+        restocking = bool(ss.restock and ss.restock["state"] not in TERMINAL_BATCH_STATES + ("SKIPPED",))
+        b1, b2, b3, _ = st.columns([1, 1, 1, 2])
+        if b1.button("Go viral", type="primary", disabled=v_running or restocking):
+            vcfg = ViralConfig(hero_listing.listing_id, int(v_views), float(v_secs), int(v_units)).validate(
+                max_duration_seconds=config.spike_max_duration_seconds)
+            ss.viral_job = ViralJob(catalog, publisher, vcfg).start()
+            ss.ops_bq = {}
+            ss.restock = None
+            st.rerun()
+        if b2.button("Stop", disabled=not v_running, key="viral_stop"):
+            vjob.cancel()
+        if b3.button("Reset demo", disabled=v_running or restocking, key="viral_reset",
+                     help="Clears the run and restocks the partner: a Spark batch writes a fresh Iceberg snapshot."):
+            _reset_demo(int(v_units))
+            st.rerun()
+
+        @st.fragment(run_every=10.0 if restocking else None)
+        def restock_status() -> None:
+            r = ss.restock
+            if not r:
+                return
+            if r.get("name") and r["state"] not in TERMINAL_BATCH_STATES:
+                try:
+                    r["state"] = batch_state(r["name"])
+                except Exception as exc:
+                    r["error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
+            batch = r.get("name", "").rsplit("/", 1)[-1]
+            if r["state"] == "SUCCEEDED":
+                st.success(f"Partner restocked: Spark batch `{batch}` wrote {r['units']:,} units to the Iceberg feed.")
+            elif r["state"] == "SKIPPED":
+                st.info("Demo reset. Partner restock skipped (local mode or LAKEHOUSE_BUCKET not set).")
+            elif r["state"] in TERMINAL_BATCH_STATES:
+                st.error(f"Partner restock {r['state']}: {r.get('error') or batch}")
+            else:
+                st.info(f"Restocking partner: Spark batch `{batch}` is {r['state']} (about 3 minutes).")
+            if restocking and r["state"] in TERMINAL_BATCH_STATES:
+                st.rerun(scope="app")
+
+        restock_status()
+        polling = v_running or bool(vjob and vjob.seconds_since_end < 60)
+
+        @st.fragment(run_every=2.0 if polling else None)
+        def viral_live() -> None:
+            job: ViralJob = ss.viral_job
+            if job is None:
+                st.caption("Press **Go viral** to start the TikTok moment.")
+                return
+            snap = job.snapshot()
+            _ops_bigquery(job)
+            bq = ss.ops_bq
+            bq_risk = (bq.get("risk") or [None])[0]
+            projected = bq_risk["projected_units"] if bq_risk else snap["projected_units"]
+            partner = bq_risk["partner_units"] if bq_risk else snap["partner_units"]
+            level = bq_risk["risk_level"] if bq_risk else risk_level(projected, snap["cart_units"])
+
+            m = st.columns(5)
+            m[0].metric("Page views", f"{snap['page_views']:,}")
+            m[1].metric("Add-to-carts", f"{snap['add_to_cart']:,}")
+            m[2].metric("Marketplace orders", f"{snap['orders']:,}")
+            m[3].metric("Waitlist", f"{snap['waitlist']:,}")
+            m[4].metric("Status", snap["status"])
+
+            if level == "OK":
+                st.success(f"Partner stock OK: {max(projected, 0):,} of {partner:,} units left.")
+            else:
+                st.error(
+                    f"OVERSELL {'RISK' if level == 'AT_RISK' else 'CAUGHT'}: listing {snap['listing_id']} says "
+                    f"IN STOCK, but {snap['seller_name']}'s feed shows {partner:,} units and "
+                    f"{snap['units_ordered']:,} have already been ordered ({max(projected, 0):,} left).",
+                    icon="🚨",
+                )
+            st.progress(max(min(projected / partner, 1.0), 0.0) if partner else 0.0,
+                        text=f"Partner stock gauge: {max(projected, 0):,} / {partner:,} units "
+                             f"({'BigQuery view' if bq_risk else 'simulator'})")
+
+            left, right = st.columns(2)
+            with left:
+                st.markdown("**Live: events per 10 seconds**")
+                if snap["timeline"]:
+                    st.line_chart({k: [t[k] for t in snap["timeline"]]
+                                   for k in ("page_views", "add_to_cart", "orders", "waitlist")})
+            with right:
+                st.markdown("**Same orders: live vs. next-day batch report**")
+                cumulative, total = [], 0
+                for t in snap["timeline"]:
+                    total += t["orders"]
+                    cumulative.append(total)
+                if cumulative:
+                    st.area_chart({"Live lakehouse (minutes)": cumulative,
+                                   "Next-day report (lands 06:00 tomorrow)": [0] * len(cumulative)})
+                st.caption("Siloed: clickstream in Databricks on AWS, partner stock in an overnight batch, "
+                           "reports in BigQuery. The trend shows up 24 hours later.")
+
+            with st.container(border=True):
+                st.markdown("**Simulated marketing response**")
+                stores = [r for r in (bq.get("stores") or []) if r["location_id"].endswith("-ST")
+                          and r["quantity_on_hand"] > 0]
+                sub = _substitute_product(snap["omni_item_id"])
+                c_a, c_b = st.columns(2)
+                c_a.markdown(
+                    "- Keywords: *tiktok eye tightener*, *instant eye firming*, *viral under eye cream*\n"
+                    "- Channels: Google Shopping + social, high bid while CPCs are still low\n"
+                    f"- Waitlist: **on** for late visitors ({snap['waitlist']:,} joined)"
+                )
+                if stores:
+                    c_b.markdown("Collect in store today:\n" + "\n".join(
+                        f"- {r['location_id']}: {r['quantity_on_hand']} units" for r in stores))
+                else:
+                    c_b.caption("Branch stock appears here from BigQuery (stock_master_location).")
+                if projected <= 0 and sub is not None:
+                    st.warning(f"Partner stock is gone: budget moves to **{sub.description}** (`{sub.omni_item_id}`).")
+            for key in ("risk_error", "minutes_error", "stores_error", "alert_error"):
+                if bq.get(key):
+                    st.caption(f"BigQuery {key.split('_')[0]}: {bq[key]}")
+            if bq.get("minutes"):
+                with st.expander("BigQuery clickstream per minute (landed rows)"):
+                    st.dataframe(bq["minutes"], hide_index=True, width="stretch")
+            for err in snap["errors"]:
+                st.error(err)
+            if (not job.is_running and v_running) or (polling and not v_running and job.seconds_since_end >= 60):
+                st.rerun(scope="app")
+
+        viral_live()
+
+    st.subheader("Demo links")
+    st.caption("Opens the Google Cloud console in a new tab (sign in to the presenting account first).")
+    for scene, links in group_links(demo_links(config)).items():
+        st.markdown(f"**{scene}**")
+        cols = st.columns(min(len(links), 4))
+        for i, link in enumerate(links):
+            cols[i % len(cols)].link_button(link.label, link.url, width="stretch")
+    st.code("Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand.", language=None)
 
 # ---------------------------------------------------------------- log
 with log_tab:

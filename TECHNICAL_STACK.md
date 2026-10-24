@@ -31,6 +31,7 @@ The following is the technical stack showcased in this repository content.
 | 25. | Provisioning automation* | Terraform |
 | 26. | Real-time event streaming into BigQuery (no pipeline code) | Cloud `Pub/Sub` with `BigQuery subscriptions` |
 | 27. | Mock omni-channel storefront UI (demo starting point) | `Streamlit` on Cloud Shell, optionally `Cloud Run` |
+| 28. | Open table format written by Spark, queried by BigQuery (viral-moment partner feed) | `Apache Iceberg` via the Lakehouse runtime catalog Iceberg REST endpoint, `Serverless for Apache Spark` |
 
 `*` - Coming soon
 

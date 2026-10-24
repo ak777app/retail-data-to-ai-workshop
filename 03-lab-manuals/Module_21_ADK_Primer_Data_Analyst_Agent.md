@@ -200,15 +200,15 @@ Run the below in Cloud Shell-
 ```
 PROJECT_ID=`gcloud config list --format "value(core.project)" 2>/dev/null`
 PROJECT_NBR=`gcloud projects describe $PROJECT_ID | grep projectNumber | cut -d':' -f2 |  tr -d "'" | xargs`
-LOCATION="us-central1"
 
 cd ~/retail-data-to-ai-workshop/02-code-assets/capstone-retail-solution
 
-sed -i s/'LOCATION'/$LOCATION/g data_analyst_agent/data_analyst_agent/.env
 sed -i s/'PROJECT_ID'/$PROJECT_ID/g data_analyst_agent/data_analyst_agent/.env
 sed -i s/'PROJECT_NBR'/$PROJECT_NBR/g data_analyst_agent/data_analyst_agent/.env
 sed -i s/'PROJECT_ID'/$PROJECT_ID/g data_analyst_agent/data_analyst_agent/.agent_engine_config.json
 ```
+
+The agent's `.env` already sets `GEMINI_MODEL="gemini-3.1-pro-preview"` and `GOOGLE_CLOUD_LOCATION="global"` (this preview model is served from the global endpoint). If your project has a different Gemini model, change both values.
 
 Open the file in Cloud Shell editor and ensure they are updated accurately or `cat` the files
 
