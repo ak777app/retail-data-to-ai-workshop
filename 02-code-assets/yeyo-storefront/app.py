@@ -548,9 +548,9 @@ with marketing_tab:
         price = float(job.listing.listing_price)
         bq_risk = (ss.ops_bq.get("risk") or [None])[0]
         level = bq_risk["risk_level"] if bq_risk else risk_level(snap["projected_units"], snap["cart_units"])
-        from_bq = bool(mk.get("referrer"))
-        rows = ({"referrer": mk["referrer"], "postcode": mk.get("postcode") or []} if from_bq
-                else simulator_rows(snap, price, level))
+        sim = simulator_rows(snap, price, level)
+        rows = {key: mk.get(key) or sim[key] for key in ("referrer", "postcode")}
+        from_bq = bool(mk.get("referrer")) and bool(mk.get("postcode"))
         t = totals(rows["referrer"])
 
         st.markdown(f"**{snap['description']}** on the YeYo Marketplace ({snap['seller_name']}), "
@@ -594,7 +594,7 @@ with marketing_tab:
               "Nearest store with stock": r["nearest_store"] or "-",
               "Next best action": r["next_best_action"]} for r in rows["postcode"]],
             hide_index=True, width="stretch")
-        st.caption(f"Source: {'BigQuery ' + config.marketing_view if from_bq else 'simulator'} "
+        st.caption(f"Source: {'BigQuery ' + config.marketing_view if from_bq else 'simulator (BigQuery not available)'} "
                    f"(clickstream landed through Pub/Sub, oversell view, stock by store).")
         for key in ("referrer_error", "postcode_error"):
             if mk.get(key):
