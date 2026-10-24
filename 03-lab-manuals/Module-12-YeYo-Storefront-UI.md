@@ -79,6 +79,15 @@ The variable names are the same as in Module 11:
 
 How the fallback works: in `auto` mode, if the Pub/Sub client can't be created or a publish fails (for example the topic is missing or there's no permission), the storefront switches to the BigQuery client and calls `insert_rows_json` on the same landing tables. Rows written this way have the same columns, with `subscription_name = "bigquery-direct-fallback"`. The sidebar shows which path is active.
 
+With `CATALOG_SOURCE=auto` or `bigquery`, load the marketplace sellers and listings into BigQuery. Otherwise the storefront warns "Marketplace sellers table unavailable (NotFound)" and uses the bundled copies:
+
+```
+bq load --source_format=CSV --skip_leading_rows=1 --replace capstone_ds.marketplace_seller_master sample_data/marketplace_sellers.csv \
+  seller_id:STRING,seller_name:STRING,fulfillment_type:STRING,rating:FLOAT64,city:STRING,state_code:STRING,onboarded_date:DATE,is_active:STRING
+bq load --source_format=CSV --skip_leading_rows=1 --replace capstone_ds.marketplace_listings sample_data/marketplace_listings.csv \
+  listing_id:STRING,seller_id:STRING,item_number:STRING,omni_item_id:STRING,listing_price:NUMERIC,stock_status:STRING,is_active:STRING
+```
+
 <hr>
 
 ## 2. Run the storefront in Cloud Shell
@@ -205,13 +214,14 @@ gcloud run deploy yeyo-storefront \
   --timeout 3600 \
   --set-env-vars PROJECT_ID=$PROJECT_ID,LOCATION=$LOCATION,BQ_DATASET=capstone_ds,PUBSUB_TOPIC=yeyo-orders,CATALOG_SOURCE=auto,PUBLISH_MODE=auto
 
-# Open it privately through an authenticated local proxy, then Web Preview on port 8080
-gcloud run services proxy yeyo-storefront --region $LOCATION --port 8080
+# Open it privately from your laptop's terminal (gcloud CLI + `gcloud components install cloud-run-proxy`), then http://localhost:8080
+gcloud run services proxy yeyo-storefront --region us-central1 --project YOUR_PROJECT_ID --port 8080
 ```
 
 Notes:
 - `.env` isn't uploaded (see `.gcloudignore`); configuration comes from `--set-env-vars`.
 - `--max-instances 1` keeps all sessions, and any running spike, on one instance, and caps cost.
+- Run the proxy on your laptop, not Cloud Shell: through Cloud Shell's Web Preview the page loads but its WebSocket fails with 503.
 - Cleanup: `gcloud run services delete yeyo-storefront --region $LOCATION`.
 
 <hr>
