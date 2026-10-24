@@ -87,12 +87,15 @@ class Config:
     spark_service_account: str = ""
     dq_scan_id: str = "yeyo-oversell-dq"
     agent_url: str = ""
+    data_agent_url: str = ""
+    data_agent_app: str = "data_analyst_agent"
     looker_report_url: str = ""
     viral_listing_id: str = "LST-0017"
     viral_partner_units: int = 600
-    viral_page_views: int = 6000
+    viral_page_views: int = 13000
     viral_pause_units: int = 400
-    viral_duration_seconds: int = 120
+    viral_duration_seconds: int = 180
+    viral_store_units: int = 400
 
     @property
     def topic_path(self) -> str:
@@ -168,10 +171,13 @@ def load_config(env_file: Optional[os.PathLike] = None) -> Config:
         spark_service_account=_env("SPARK_SERVICE_ACCOUNT", ""),
         dq_scan_id=_env("DQ_SCAN_ID", "yeyo-oversell-dq"),
         agent_url=_env("AGENT_URL", ""),
+        data_agent_url=_env("DATA_AGENT_URL", "").rstrip("/"),
+        data_agent_app=_env("DATA_AGENT_APP", "data_analyst_agent"),
         looker_report_url=_env("LOOKER_REPORT_URL", ""),
         viral_listing_id=_env("VIRAL_LISTING_ID", "LST-0017"),
         viral_partner_units=max(1, _env_int("VIRAL_PARTNER_UNITS", 600)),
-        viral_page_views=max(1, _env_int("VIRAL_PAGE_VIEWS", 6000)),
+        viral_page_views=max(1, _env_int("VIRAL_PAGE_VIEWS", 13000)),
         viral_pause_units=max(0, _env_int("VIRAL_PAUSE_UNITS", 400)),
-        viral_duration_seconds=max(0, _env_int("VIRAL_DURATION_SECONDS", 120)),
+        viral_duration_seconds=max(0, _env_int("VIRAL_DURATION_SECONDS", 180)),
+        viral_store_units=max(0, _env_int("VIRAL_STORE_UNITS", 400)),
     )

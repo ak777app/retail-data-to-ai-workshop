@@ -26,15 +26,17 @@ METRICS = ("sessions", "page_views", "cart_units", "purchase_sessions", "purchas
 
 
 PHASE_BASELINE, PHASE_VIRAL, PHASE_SURGE, PHASE_SOLD_OUT = "baseline", "viral", "surge", "sold_out"
+PHASE_STORES_OUT = "stores_out"
 NEW_BID = "NEW: high bid"
 
 
-def story_phase(started: bool, pause_done: bool, projected_units: int) -> str:
-    """Where the viral story is: before the spike, rising, marketing has reacted, partner sold out."""
+def story_phase(started: bool, pause_done: bool, projected_units: int,
+                store_units_left: Optional[int] = None) -> str:
+    """Where the viral story is: before the spike, rising, marketing has reacted, partner sold out, stores sold out."""
     if not started:
         return PHASE_BASELINE
     if projected_units <= 0:
-        return PHASE_SOLD_OUT
+        return PHASE_STORES_OUT if store_units_left is not None and store_units_left <= 0 else PHASE_SOLD_OUT
     return PHASE_SURGE if pause_done else PHASE_VIRAL
 
 
@@ -50,7 +52,7 @@ def campaign_bids(phase: str, hero: str, others: Sequence[Tuple[str, str]], subs
     `others` are (product, search terms) pairs for the always-on campaigns."""
     rows = [_bid("Always-on", name, "Google Shopping", terms, 0.45 + 0.1 * i, 300, "Live")
             for i, (name, terms) in enumerate(others)]
-    if phase not in (PHASE_SURGE, PHASE_SOLD_OUT):
+    if phase not in (PHASE_SURGE, PHASE_SOLD_OUT, PHASE_STORES_OUT):
         return rows
     hero_status = NEW_BID if phase == PHASE_SURGE else "Paused: partner sold out"
     viral = [
@@ -61,12 +63,14 @@ def campaign_bids(phase: str, hero: str, others: Sequence[Tuple[str, str]], subs
         _bid("Viral: Social", hero, "TikTok + Instagram", "viewers of the viral video and lookalikes", 1.20, 4000,
              hero_status),
     ]
-    if phase == PHASE_SOLD_OUT:
+    if phase in (PHASE_SOLD_OUT, PHASE_STORES_OUT):
         viral.insert(0, _bid("Collect in store today", hero, "Local inventory ads",
-                             "within 10 miles of " + (", ".join(stores) or "YeYo stores"), 1.50, 2000, "NEW"))
+                             "within 10 miles of " + (", ".join(stores) or "YeYo stores"), 2.20, 4000,
+                             NEW_BID if phase == PHASE_SOLD_OUT else "Paused: stores sold out"))
         if substitute:
-            viral.insert(1, _bid("Substitute", substitute, "Google Shopping + social",
-                                 "eye tightener, eye firming", 1.10, 3000, "NEW"))
+            viral.insert(1, _bid("Private label", substitute, "Google Shopping + TikTok + Instagram",
+                                 "tiktok eye tightener, instant eye firming, viewers of the viral video", 1.60, 5000,
+                                 NEW_BID))
     return viral + rows
 
 

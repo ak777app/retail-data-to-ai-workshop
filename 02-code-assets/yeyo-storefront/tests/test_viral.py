@@ -19,7 +19,7 @@ from pathlib import Path
 from storefront.catalog import SAMPLE_DATA_DIR, _read_csv, load_bigquery_catalog
 from storefront.ops import CONSOLE, demo_links, group_links, restock_batch, risk_level, submit_restock
 from storefront.publisher import BigQueryPublisher, PubSubPublisher, event_attributes, event_to_row
-from storefront.marketing import (PHASE_SOLD_OUT, PHASE_SURGE, PHASE_VIRAL, campaign_bids, story_phase,
+from storefront.marketing import (PHASE_SOLD_OUT, PHASE_STORES_OUT, PHASE_SURGE, PHASE_VIRAL, campaign_bids, story_phase,
                                   ACTION_SCALE, ACTION_STORE, ACTION_SUBSTITUTE, by_postcode_sql,
                                   by_referrer_sql, next_best_action, simulator_rows, totals)
 from storefront.viral import ViralConfig, ViralJob, build_clickstream_event, viral_listing
@@ -266,5 +266,33 @@ def test_campaign_bids_follow_story():
     assert sum(r["Product"] == "Hero" and r["Status"].startswith("NEW") for r in surge) == 3
     sold = campaign_bids(PHASE_SOLD_OUT, "Hero", others, "YeYo serum", ["Chicago store"])
     assert sold[0]["Campaign"] == "Collect in store today" and "Chicago store" in sold[0]["Targeting"]
-    assert sold[1]["Product"] == "YeYo serum"
+    assert sold[1]["Campaign"] == "Private label" and sold[1]["Product"] == "YeYo serum"
+    assert sold[0]["Status"].startswith("NEW") and sold[1]["Status"].startswith("NEW")
     assert all(r["Status"].startswith("Paused") for r in sold if r["Campaign"].startswith("Viral"))
+    assert story_phase(True, True, 0, 10) == PHASE_SOLD_OUT and story_phase(True, True, 0, 0) == PHASE_STORES_OUT
+    done = campaign_bids(PHASE_STORES_OUT, "Hero", others, "YeYo serum", ["Chicago store"])
+    assert done[0]["Status"] == "Paused: stores sold out" and done[1]["Status"].startswith("NEW")
+
+
+def test_viral_continues_as_click_and_collect_from_store_stock(catalog, config):
+    stores = [s.location_id for s in catalog.stores()]
+    cfg = ViralConfig(page_views=3000, duration_seconds=0, partner_units=20, seed=3,
+                      store_stock=tuple((s, 15) for s in stores)).validate()
+    client = FakePubSubClient()
+    job = ViralJob(catalog, PubSubPublisher(config, client=client), cfg).start()
+    job.join(30)
+    snap = job.snapshot()
+    assert snap["units_ordered"] == 20 and snap["store_units_sold"] == 15 * len(stores) == snap["store_units_total"]
+    assert snap["store_units_left"] == 0 and snap["waitlist"] > 0
+    assert snap["units_sold_total"] == 20 + 15 * len(stores)
+    orders = [data for _, data, _ in client.messages if data.get("line_items")]
+    collect = [o for o in orders if o["fulfillment_type"] == "CLICK_AND_COLLECT"]
+    assert collect and all(o["location_id"] in stores and o["channel"] == "online" for o in collect)
+    assert sum(li["quantity"] for o in collect for li in o["line_items"]) == 15 * len(stores)
+
+
+def test_store_stock_reset_sql_replaces_todays_rows(config):
+    from storefront.ops import store_stock_reset_sql
+    sql = store_stock_reset_sql(config)
+    assert "DELETE FROM" in sql and "INSERT INTO" in sql and "UNNEST(@locations)" in sql
+    assert config.stock_location_table in sql

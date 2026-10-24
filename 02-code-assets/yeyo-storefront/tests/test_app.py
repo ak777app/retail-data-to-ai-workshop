@@ -47,21 +47,27 @@ def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
     monkeypatch.setenv("PUBLISH_MODE", "local")
     monkeypatch.setenv("CATALOG_SOURCE", "sample")
     monkeypatch.setenv("LOCAL_EVENTS_FILE", str(events_file))
-    monkeypatch.setenv("VIRAL_PAGE_VIEWS", "200")
+    monkeypatch.setenv("VIRAL_PAGE_VIEWS", "1000")
     monkeypatch.setenv("VIRAL_DURATION_SECONDS", "0")
     monkeypatch.setenv("VIRAL_PARTNER_UNITS", "20")
+    monkeypatch.setenv("VIRAL_STORE_UNITS", "5")
     st.cache_resource.clear()
     at = AppTest.from_file(APP, default_timeout=30).run()
-    assert [t.label for t in at.tabs] == ["Shop", "Ops: viral moment", "Marketing: viral moment"]
+    assert [t.label for t in at.tabs] == ["Shop", "Ops: viral moment", "Marketing: viral moment",
+                                          "Ask the data agent"]
     next(b for b in at.button if b.label == "Go viral").click().run()
     at.session_state["viral_job"].join(30)
     at.run()
     assert not at.exception
     assert any("OVERSELL" in e.value for e in at.error)
     lines = events_file.read_text().splitlines()
-    assert sum('"page_view"' in line for line in lines) == 200
+    assert sum('"page_view"' in line for line in lines) == 1000
     assert any(m.label == "Revenue at risk (waitlist)" for m in at.metric)
     assert any("Pause ads" in e.value for e in at.error)
+    snap = at.session_state["viral_job"].snapshot()
+    assert snap["store_units_sold"] == snap["store_units_total"] == 15 and snap["store_units_left"] == 0
+    assert any(m.label == "London store units left" for m in at.metric)
+    assert any("click & collect" in md.value for md in at.markdown)
 
 
 def test_ops_reset_demo_clears_run_locally(monkeypatch, tmp_path):

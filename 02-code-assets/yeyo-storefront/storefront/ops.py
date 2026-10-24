@@ -143,6 +143,30 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY location_id ORDER BY stock_date DESC) = 
 ORDER BY quantity_on_hand DESC"""
 
 
+def store_stock_reset_sql(config: Config) -> str:
+    """Replaces today's stock rows for the hero SKU in the given stores (latest row per store wins)."""
+    table = config.fq_table(config.stock_location_table)
+    return f"""
+DELETE FROM `{table}`
+WHERE omni_item_id = @omni_item_id AND stock_date = CURRENT_DATE() AND location_id IN UNNEST(@locations);
+INSERT INTO `{table}` (stock_date, item_number, omni_item_id, location_id, quantity_on_hand)
+SELECT CURRENT_DATE(), @item_number, @omni_item_id, location_id, @units FROM UNNEST(@locations) AS location_id;"""
+
+
+def reset_store_stock(config: Config, item_number: str, omni_item_id: str, locations: List[str], units: int,
+                      client=None) -> None:
+    from google.cloud import bigquery
+
+    client = client or bigquery.Client(project=config.project_id or None, location=config.location)
+    job_config = bigquery.QueryJobConfig(query_parameters=[
+        bigquery.ScalarQueryParameter("item_number", "STRING", item_number),
+        bigquery.ScalarQueryParameter("omni_item_id", "STRING", omni_item_id),
+        bigquery.ScalarQueryParameter("units", "INT64", int(units)),
+        bigquery.ArrayQueryParameter("locations", "STRING", list(locations)),
+    ])
+    client.query(store_stock_reset_sql(config), job_config=job_config).result()
+
+
 def run_query(config: Config, sql: str, params: Dict[str, str], client=None) -> List[Dict]:
     from google.cloud import bigquery
 
