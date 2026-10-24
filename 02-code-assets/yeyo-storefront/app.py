@@ -126,10 +126,15 @@ def _seller_label(listing_id: str) -> str:
 
 
 def _place_order() -> None:
+    lines = _cart_lines()
+    if ss.channel != CHANNEL_IN_STORE and any(l.product.omni_item_id == ss.hero_sold_out for l in lines):
+        ss.last_order = {"error": "Sold out online and on the Marketplace: remove it from the cart and use "
+                                  "Click & collect."}
+        return
     try:
         event = build_order_event(
             catalog,
-            _cart_lines(),
+            lines,
             channel=ss.channel,
             customer_id=ss.get("customer_id"),
             location_id=ss.get("store_id") if ss.channel == CHANNEL_IN_STORE else None,
