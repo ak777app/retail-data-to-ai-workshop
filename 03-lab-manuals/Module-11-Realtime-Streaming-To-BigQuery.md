@@ -94,8 +94,8 @@ The DDL lives in [`02-code-assets/yeyo-storefront/sql/streaming_tables.sql`](../
 
 ```
 cd ~/retail-data-to-ai-workshop/02-code-assets/yeyo-storefront
-bq query --project_id=$PROJECT_ID --location=$LOCATION --use_legacy_sql=false \
-  "$(sed "s/capstone_ds\./${BQ_DATASET}./g" sql/streaming_tables.sql)"
+sed "s/capstone_ds\./${BQ_DATASET}./g" sql/streaming_tables.sql \
+  | bq query --project_id=$PROJECT_ID --location=$LOCATION --use_legacy_sql=false
 
 bq ls $PROJECT_ID:$BQ_DATASET
 ```
