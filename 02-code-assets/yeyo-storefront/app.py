@@ -553,7 +553,7 @@ with ops_tab:
                 ss.open_dialog = "sold_out"
                 st.rerun(scope="app")
             stores_out = snap["store_units_total"] and snap["store_units_left"] <= 0
-            if snap["projected_units"] <= 0 and (stores_out or not job.is_running) \
+            if snap["projected_units"] <= 0 and stores_out \
                     and ss.get("finale_shown") != job.viral_id and ss.get("sold_out_shown") == job.viral_id \
                     and ss.open_dialog is None:
                 ss.finale_shown = job.viral_id
