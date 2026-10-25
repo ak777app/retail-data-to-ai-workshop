@@ -182,8 +182,7 @@ def governed_assets(config: Config, aws_catalog_location: str = "us-east4") -> L
         table("customer_master", "Customers", "Restricted (PII)",
               "Policy tags: email and phone masked unless Fine-Grained Reader", "CRM"),
     ]
-    aws_only = {config.aws_s3_table, config.partner_replica_table}
-    return assets if config.aws_s3_bucket else [a for a in assets if a.name not in aws_only]
+    return assets if config.aws_s3_bucket else [a for a in assets if a.domain != "Partner stock (FitGear)"]
 
 
 def governed_search_url(config: Config) -> str:
