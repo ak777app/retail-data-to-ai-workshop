@@ -47,11 +47,17 @@ PARTITION BY DATE(publish_time)
 CLUSTER BY omni_item_id, event_type
 OPTIONS (description = 'YeYo clickstream (page views, add-to-carts, waitlist joins) streamed from Pub/Sub topic yeyo-clickstream');
 
--- Partner stock (last Spark snapshot) minus YeYo demand since that snapshot.
+-- Partner stock feed: the Spark-written Iceberg table (Glow Lab). sql/partner_stock_aws.sql adds
+-- FitGear Direct's feed from Amazon S3 (BigQuery Omni) to this view.
+CREATE OR REPLACE VIEW capstone_ds.vw_partner_stock AS
+SELECT listing_id, seller_id, omni_item_id, item_number, warehouse_id, units_on_hand, snapshot_ts, source_system
+FROM `PROJECT_ID.yeyo_lake.yeyo_partner_lake.partner_stock`;
+
+-- Partner stock (last snapshot) minus YeYo demand since that snapshot.
 -- The listing page keeps saying IN_STOCK; the risk level says otherwise.
 CREATE OR REPLACE VIEW capstone_ds.vw_oversell_risk AS
 WITH snap AS (
-  SELECT * FROM `PROJECT_ID.yeyo_lake.yeyo_partner_lake.partner_stock`
+  SELECT * FROM capstone_ds.vw_partner_stock
   QUALIFY ROW_NUMBER() OVER (PARTITION BY listing_id ORDER BY snapshot_ts DESC) = 1
 ),
 demand AS (

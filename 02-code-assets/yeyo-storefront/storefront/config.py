@@ -85,6 +85,12 @@ class Config:
     lakehouse_bucket: str = ""
     lakehouse_catalog: str = "yeyo_lake"
     spark_service_account: str = ""
+    aws_connection: str = "aws-us-east-1.yeyo_aws_partner"
+    aws_dataset: str = "yeyo_partner_aws"
+    aws_s3_bucket: str = ""
+    aws_s3_table: str = "partner_stock_s3"
+    aws_iceberg_table: str = ""
+    partner_replica_table: str = "partner_stock_aws_replica"
     dq_scan_id: str = "yeyo-oversell-dq"
     agent_url: str = ""
     data_agent_url: str = ""
@@ -96,6 +102,10 @@ class Config:
     viral_pause_units: int = 400
     viral_duration_seconds: int = 180
     viral_store_units: int = 400
+
+    @property
+    def aws_location(self) -> str:
+        return self.aws_connection.split(".", 1)[0]
 
     @property
     def topic_path(self) -> str:
@@ -169,6 +179,12 @@ def load_config(env_file: Optional[os.PathLike] = None) -> Config:
         lakehouse_bucket=_env("LAKEHOUSE_BUCKET", ""),
         lakehouse_catalog=_env("LAKEHOUSE_CATALOG", "yeyo_lake"),
         spark_service_account=_env("SPARK_SERVICE_ACCOUNT", ""),
+        aws_connection=_env("AWS_CONNECTION", "aws-us-east-1.yeyo_aws_partner"),
+        aws_dataset=_env("AWS_DATASET", "yeyo_partner_aws"),
+        aws_s3_bucket=_env("AWS_S3_BUCKET", ""),
+        aws_s3_table=_env("AWS_S3_TABLE", "partner_stock_s3"),
+        aws_iceberg_table=_env("AWS_ICEBERG_TABLE", ""),
+        partner_replica_table=_env("BQ_PARTNER_REPLICA_TABLE", "partner_stock_aws_replica"),
         dq_scan_id=_env("DQ_SCAN_ID", "yeyo-oversell-dq"),
         agent_url=_env("AGENT_URL", ""),
         data_agent_url=_env("DATA_AGENT_URL", "").rstrip("/"),

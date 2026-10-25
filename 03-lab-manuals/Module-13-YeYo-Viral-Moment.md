@@ -110,7 +110,7 @@ rules:
 - name: partner-snapshot-fresh
   dimension: FRESHNESS
   rowConditionExpectation:
-    sqlExpression: "partner_snapshot_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)"
+    sqlExpression: "seller_id = 'MKT-S003' OR partner_snapshot_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)"
   threshold: 1.0
 YAML
 gcloud dataplex datascans create data-quality yeyo-oversell-dq --location=$LOCATION \
@@ -222,3 +222,54 @@ gcloud pubsub subscriptions delete yeyo-clickstream-bq --quiet && gcloud pubsub 
 gcloud biglake iceberg catalogs delete yeyo_lake --quiet
 gcloud storage rm -r gs://$BUCKET
 ```
+
+## 9. Optional: a second partner on Amazon S3 (BigQuery Omni)
+
+Glow Lab's feed stays on Google Cloud, written by Spark into the Lakehouse Iceberg table. A second partner, FitGear Direct (`MKT-S003`, listings LST-0020/21/22/24), runs on AWS. BigQuery Omni writes and reads FitGear's stock in their S3 bucket, and only FitGear's filtered rows cross clouds. `vw_partner_stock` combines both feeds, so `vw_oversell_risk` covers both partners:
+
+```
+GCS  yeyo_lake.yeyo_partner_lake.partner_stock  (Iceberg, written by Spark: Glow Lab) ─────────────┐
+S3   s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/  (Parquet, written by Omni)          │
+  └─ BigLake table yeyo_partner_aws.partner_stock_s3 (aws-us-east-1, query runs in AWS)              │
+       └─ cross-cloud CTAS ─► yeyo_partner_east4.partner_stock (us-east4)                            │
+            └─ table copy ─► capstone_ds.partner_stock_aws_replica ─► vw_partner_stock (UNION ALL) ◄─┘
+                                                                         └─► vw_oversell_risk
+```
+
+Omni needs a billed project (not the sandbox) and runs on demand in `aws-us-east-1`. A query in `us-central1` can't join the S3 table directly, and a cross-region join took about a minute, too slow for the Ops tab. So FitGear's stock is loaded once: S3, then `us-east4`, then a copy into `capstone_ds`. The view reads that local copy. The demo doesn't sell FitGear's products, so **Reset demo** only restocks Glow Lab (Spark) and the London stores. FitGear's snapshot then ages, so the `partner-snapshot-fresh` data quality rule skips `MKT-S003`.
+
+1. Create the connection and datasets, and note the identity the connection prints:
+
+```
+bq mk --connection --connection_type=AWS --location=aws-us-east-1 \
+  --iam_role_id=arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/yeyo-bq-omni-partner-stock yeyo_aws_partner
+bq mk --dataset --location=aws-us-east-1 yeyo_partner_aws
+bq mk --dataset --location=us-east4 yeyo_partner_east4
+```
+
+2. In the AWS console (us-east-1):
+   - **S3 bucket:** create `yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID` with Block all public access on and SSE-S3 encryption.
+   - **IAM policy:** create `yeyo-bq-omni-partner-stock-s3`. It allows `s3:ListBucket` on the bucket, `s3:GetObject` on `bucket/*`, and `s3:PutObject` and `s3:DeleteObject` on `bucket/partner_stock/*`.
+   - **IAM role:** create `yeyo-bq-omni-partner-stock` with the Web identity trusted entity type, Google as the provider, and the identity from step 1 as the audience. Attach the policy. Then edit the trust policy so its condition is `"accounts.google.com:sub": "IDENTITY"`.
+   - **Session length:** set the role's maximum session duration to 12 hours.
+3. Write FitGear's snapshot to S3, create the tables, and copy the rows to `capstone_ds` (one-off, about 1 minute):
+
+```
+bq query --use_legacy_sql=false --location=aws-us-east-1 "EXPORT DATA WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(uri='s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet', format='PARQUET', overwrite=true) AS SELECT listing_id, 'MKT-S003' AS seller_id, CONCAT(item_number, '-OM') AS omni_item_id, item_number, 'FITGEAR-INDIANAPOLIS-DC' AS warehouse_id, units_on_hand, CURRENT_TIMESTAMP() AS snapshot_ts, 'amazon-s3' AS source_system FROM UNNEST([STRUCT('LST-0020' AS listing_id, 'LIF-4001' AS item_number, 1500 AS units_on_hand), ('LST-0021', 'LIF-4002', 1500), ('LST-0022', 'LIF-4003', 1500), ('LST-0024', 'LIF-4005', 40)])"
+bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.partner_stock_s3\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='PARQUET', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet'])"
+bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE TABLE \`$PROJECT_ID.yeyo_partner_east4.partner_stock\` AS SELECT * FROM \`$PROJECT_ID.yeyo_partner_aws.partner_stock_s3\` WHERE seller_id = 'MKT-S003'"
+sed "s/PROJECT_ID/$PROJECT_ID/g" sql/partner_stock_aws.sql | bq query --use_legacy_sql=false --location=$LOCATION
+bq cp -f $PROJECT_ID:yeyo_partner_east4.partner_stock $PROJECT_ID:capstone_ds.partner_stock_aws_replica
+gcloud run services update yeyo-storefront --region us-central1 \
+  --update-env-vars AWS_S3_BUCKET=yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID
+```
+
+Check that `capstone_ds.partner_stock_aws_replica` has 4 rows. If it's empty, run the `bq cp` again: once, right after the CTAS, the copy reported success but delivered no rows. The copy now holds FitGear's four listings: 1,500 units each, and 40 for LST-0024, which is LOW_STOCK. The Demo links panel adds a **3d · Engineering: AWS S3 + BigQuery Omni** scene next to the Spark links. To drop the AWS feed, unset `AWS_S3_BUCKET` and re-run `sql/viral_moment.sql`.
+
+Optional, open format on the AWS side: Omni exports only CSV, JSON, Avro or Parquet, but it reads Iceberg. Have Athena (in the AWS console) create an Iceberg table of FitGear's stock, `fitgear.partner_stock_iceberg`, at `s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/fitgear_partner_stock/`. Then point BigQuery at the table's latest metadata file:
+
+```
+bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.partner_stock_iceberg\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='ICEBERG', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/fitgear_partner_stock/metadata/LATEST.metadata.json'])"
+```
+
+Replace `LATEST.metadata.json` with the newest `*.metadata.json` file name, and re-run the command after each Athena write. To show the Iceberg link in the Demo links panel, run `gcloud run services update yeyo-storefront --region us-central1 --update-env-vars AWS_ICEBERG_TABLE=partner_stock_iceberg`.

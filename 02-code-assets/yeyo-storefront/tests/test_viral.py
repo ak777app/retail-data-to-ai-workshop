@@ -313,3 +313,20 @@ def test_reset_store_stock_sends_per_store_units(config):
     assert bq.params == {"units": [0, 12], "locations": ["A", "B"]}
     reset_store_stock(config, "BEA-3001", "BEA-3001-OM", ["A", "B"], 400, client=bq)
     assert bq.params["units"] == [400, 400]
+
+
+def _aws_config(config, **kw):
+    return config.__class__(**{**config.__dict__, "aws_s3_bucket": "yeyo-glowlab-1", **kw})
+
+
+def test_aws_demo_links_add_scene_next_to_spark(config):
+    assert "3d · Engineering: AWS S3 + BigQuery Omni" not in group_links(demo_links(config))
+    assert not any("Iceberg): " in link.label for link in demo_links(_aws_config(config)))
+    links = demo_links(_aws_config(config, agent_url="http://a", aws_iceberg_table="partner_stock_iceberg"))
+    grouped = group_links(links)
+    assert "3c · Engineering: Spark + Iceberg" in grouped
+    aws = grouped["3d · Engineering: AWS S3 + BigQuery Omni"]
+    assert any(link.url.endswith("!2syeyo_partner_aws!3spartner_stock_iceberg") for link in aws)
+    assert any(link.url.endswith("!2syeyo_partner_aws!3spartner_stock_s3") for link in aws)
+    assert aws[-1].url == "https://s3.console.aws.amazon.com/s3/buckets/yeyo-glowlab-1?region=us-east-1"
+    assert links[-1].url == "http://a"

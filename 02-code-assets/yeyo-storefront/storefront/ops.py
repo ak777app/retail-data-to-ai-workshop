@@ -76,6 +76,8 @@ def demo_links(config: Config) -> List[DemoLink]:
                  _bq_table_url(p, ds, config.oversell_view)),
         DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: BEA-3001 assets",
                  _search_url(p, "BEA-3001 OR omni_item_id")),
+    ]
+    links += [
         DemoLink("3c · Engineering: Spark + Iceberg", f"Knowledge Catalog: {config.partner_stock_table} (Iceberg)",
                  _search_url(p, config.partner_stock_table)),
         DemoLink("3c · Engineering: Spark + Iceberg", "Spark batch jobs (Serverless for Apache Spark)",
@@ -86,6 +88,20 @@ def demo_links(config: Config) -> List[DemoLink]:
     if config.lakehouse_bucket:
         links.append(DemoLink("3c · Engineering: Spark + Iceberg", "Cloud Storage: Parquet + Iceberg metadata",
                               f"{CONSOLE}/storage/browser/{config.lakehouse_bucket}/iceberg?project={p}"))
+    if config.aws_s3_bucket:
+        scene, aws = "3d · Engineering: AWS S3 + BigQuery Omni", config.aws_dataset
+        links += [
+            DemoLink(scene, f"BigLake on S3 (Parquet): {aws}.{config.aws_s3_table}",
+                     _bq_table_url(p, aws, config.aws_s3_table)),
+            DemoLink(scene, f"Cross-cloud copy in GCP: {ds}.{config.partner_replica_table}",
+                     _bq_table_url(p, ds, config.partner_replica_table)),
+            DemoLink(scene, f"Amazon S3: {config.aws_s3_bucket}",
+                     f"https://s3.console.aws.amazon.com/s3/buckets/{config.aws_s3_bucket}"
+                     f"?region={config.aws_location.removeprefix('aws-')}"),
+        ]
+        if config.aws_iceberg_table:
+            links.insert(-1, DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_iceberg_table}",
+                                      _bq_table_url(p, aws, config.aws_iceberg_table)))
     if config.agent_url:
         links.append(DemoLink("4 · Agent acts", "Data analyst agent (adk web)", config.agent_url))
     return links
