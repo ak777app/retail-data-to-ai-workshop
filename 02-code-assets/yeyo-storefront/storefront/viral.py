@@ -63,6 +63,7 @@ class ViralConfig:
     order_rate: float = 0.45
     seed: Optional[int] = None
     pause_at_units: Optional[int] = None
+    pause_at_sell_out: bool = False
     store_stock: Tuple[Tuple[str, int], ...] = ()
 
     def validate(self, max_page_views: int = 20000, max_duration_seconds: int = 600) -> "ViralConfig":
@@ -150,6 +151,7 @@ class ViralJob:
         self._cancel = threading.Event()
         self._resume = threading.Event()
         self.pause_done = False
+        self.sell_out_pause_done = False
         self._paused_at: Optional[float] = None
         self._thread: Optional[threading.Thread] = None
         self.status = STATUS_PENDING
@@ -224,6 +226,7 @@ class ViralJob:
             events.append(build_clickstream_event(self.catalog, self.listing, EVENT_TYPE_WAITLIST_JOIN,
                                                   quantity=qty, **common))
             return events
+        qty = min(qty, self.projected_units)
         events.append(build_clickstream_event(self.catalog, self.listing, EVENT_TYPE_ADD_TO_CART,
                                               quantity=qty, **common))
         self.cart_units += qty
@@ -267,14 +270,26 @@ class ViralJob:
                     c[e["event_type"]] += 1
                     c[f"{e['event_type']}_units"] += e["quantity"]
 
-    def _should_pause(self) -> bool:
+    def _should_pause_at_units(self) -> bool:
         limit = self.config.pause_at_units
         return limit is not None and not self.pause_done and self.projected_units <= limit
+
+    def _should_pause_at_sell_out(self) -> bool:
+        """Partner sold out, ads now send shoppers to store click & collect: hold before the first store order."""
+        return (self.config.pause_at_sell_out and not self.sell_out_pause_done
+                and self.projected_units <= 0 and self.store_units_left > 0)
+
+    def _should_pause(self) -> bool:
+        return self._should_pause_at_units() or self._should_pause_at_sell_out()
 
     def _pause(self) -> None:
         """Hold the spike (presenter talks over the dashboards) until resume() or cancel()."""
         with self._lock:
-            self.pause_done = True
+            if self._should_pause_at_units():
+                self.pause_done = True
+            else:
+                self.sell_out_pause_done = True
+            self._resume.clear()
             self._paused_at = self._clock()
             self.status = STATUS_PAUSED
         while not self._resume.wait(0.25) and not self._cancel.is_set():
@@ -352,6 +367,7 @@ class ViralJob:
                 "seller_name": self.catalog.sellers[self.listing.seller_id].seller_name,
                 "paused": self.status == STATUS_PAUSED,
                 "pause_done": self.pause_done,
+                "sell_out_pause_done": self.sell_out_pause_done,
                 "live_shoppers": live,
                 "page_views": self.counts[EVENT_TYPE_PAGE_VIEW],
                 "cart_units": self.cart_units,

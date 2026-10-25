@@ -102,6 +102,7 @@ class Config:
     viral_pause_units: int = 400
     viral_duration_seconds: int = 180
     viral_store_units: int = 400
+    viral_pause_at_sell_out: bool = True
 
     @property
     def aws_location(self) -> str:
@@ -196,4 +197,5 @@ def load_config(env_file: Optional[os.PathLike] = None) -> Config:
         viral_pause_units=max(0, _env_int("VIRAL_PAUSE_UNITS", 400)),
         viral_duration_seconds=max(0, _env_int("VIRAL_DURATION_SECONDS", 180)),
         viral_store_units=max(0, _env_int("VIRAL_STORE_UNITS", 400)),
+        viral_pause_at_sell_out=_env("VIRAL_PAUSE_AT_SELL_OUT", "true").lower() not in ("0", "false", "no"),
     )

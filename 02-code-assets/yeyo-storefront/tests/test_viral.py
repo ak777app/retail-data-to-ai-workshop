@@ -256,6 +256,46 @@ def test_viral_pauses_at_threshold_until_resumed(catalog, config):
     assert not job.is_running and job.projected_units <= 0 and job.snapshot()["pause_done"]
 
 
+def test_viral_pauses_again_at_sell_out_before_store_orders(catalog, config):
+    stores = tuple((s.location_id, 50) for s in catalog.stores())
+    cfg = ViralConfig(page_views=400, duration_seconds=0, partner_units=40, seed=7, pause_at_units=20,
+                      pause_at_sell_out=True, store_stock=stores)
+    job = ViralJob(catalog, PubSubPublisher(config, client=FakePubSubClient()), cfg).start()
+
+    def wait_for(done):
+        for _ in range(200):
+            if done():
+                return
+            job.join(0.05)
+
+    wait_for(lambda: job.is_paused)
+    assert job.pause_done and not job.sell_out_pause_done
+    job.resume()
+    wait_for(lambda: job.sell_out_pause_done and job.is_paused)
+    snap = job.snapshot()
+    assert snap["paused"] and snap["sell_out_pause_done"] and snap["projected_units"] <= 0
+    assert snap["store_units_sold"] == 0
+    job.resume()
+    job.join(30)
+    assert not job.is_running and job.store_units_sold > 0
+
+
+def test_viral_never_orders_more_than_partner_units(catalog, config):
+    for seed in range(20):
+        cfg = ViralConfig(page_views=300, duration_seconds=0, partner_units=41, seed=seed, cart_rate=1.0,
+                          order_rate=1.0)
+        job = ViralJob(catalog, PubSubPublisher(config, client=FakePubSubClient()), cfg).start()
+        job.join(30)
+        assert job.units_ordered == 41
+
+
+def test_viral_skips_sell_out_pause_without_store_stock(catalog, config):
+    cfg = ViralConfig(page_views=400, duration_seconds=0, partner_units=40, seed=7, pause_at_sell_out=True)
+    job = ViralJob(catalog, PubSubPublisher(config, client=FakePubSubClient()), cfg).start()
+    job.join(30)
+    assert not job.is_running and not job.sell_out_pause_done
+
+
 def test_campaign_bids_follow_story():
     others = [("Allergy relief", "allergy")]
     assert story_phase(True, False, 300) == PHASE_VIRAL
