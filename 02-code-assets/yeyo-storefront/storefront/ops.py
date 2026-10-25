@@ -24,7 +24,7 @@ from .config import Config
 CONSOLE = "https://console.cloud.google.com"
 LOOKER_CREATE = "https://datastudio.google.com/reporting/create"
 PARTNER_FEED_ASPECT = "yeyo-partner-feed"
-AWS_S3_PREFIX = "partner_stock/snapshot/"
+AWS_S3_PREFIX = "iceberg/partner_stock/"
 
 
 class DemoLink(NamedTuple):
@@ -95,17 +95,14 @@ def demo_links(config: Config) -> List[DemoLink]:
     if config.aws_s3_bucket:
         scene, aws = "3d · Engineering: AWS S3 + BigQuery Omni", config.aws_dataset
         links += [
-            DemoLink(scene, f"BigLake on S3 (Parquet): {aws}.{config.aws_s3_table}",
+            DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_s3_table}",
                      _bq_table_url(p, aws, config.aws_s3_table)),
             DemoLink(scene, f"Cross-cloud copy in GCP: {ds}.{config.partner_replica_table}",
                      _bq_table_url(p, ds, config.partner_replica_table)),
-            DemoLink(scene, f"Amazon S3: FitGear's Parquet files in {config.aws_s3_bucket}/{AWS_S3_PREFIX}",
+            DemoLink(scene, f"Amazon S3: FitGear's Iceberg files in {config.aws_s3_bucket}/{AWS_S3_PREFIX}",
                      f"https://s3.console.aws.amazon.com/s3/buckets/{config.aws_s3_bucket}"
                      f"?region={config.aws_location.removeprefix('aws-')}&prefix={AWS_S3_PREFIX}"),
         ]
-        if config.aws_iceberg_table:
-            links.insert(-1, DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_iceberg_table}",
-                                      _bq_table_url(p, aws, config.aws_iceberg_table)))
     if config.agent_url:
         links.append(DemoLink("4 · Agent acts", "Data analyst agent (adk web)", config.agent_url))
     return links
@@ -214,8 +211,9 @@ ICEBERG_JARS = ("iceberg-spark-runtime-3.5_2.13-1.10.2.jar", "iceberg-gcp-bundle
 TERMINAL_BATCH_STATES = ("SUCCEEDED", "FAILED", "CANCELLED")
 
 
-def restock_batch(config: Config, units: int, batch_id: Optional[str] = None) -> Tuple[str, Dict]:
-    """Serverless Spark batch that appends a fresh partner snapshot to the Iceberg feed (Module 13 section 3)."""
+def restock_batch(config: Config, units: int, batch_id: Optional[str] = None,
+                  feed_uri: Optional[str] = None) -> Tuple[str, Dict]:
+    """Serverless Spark batch that ingests the partner's JSON feed into the Iceberg table (Module 13 section 3)."""
     bucket = f"gs://{config.lakehouse_bucket}"
     cat = f"spark.sql.catalog.{config.lakehouse_catalog}"
     properties = {
@@ -234,7 +232,8 @@ def restock_batch(config: Config, units: int, batch_id: Optional[str] = None) ->
             "mainPythonFileUri": f"{bucket}/spark/partner_stock_sync.py",
             "jarFileUris": [f"{bucket}/jars/{jar}" for jar in ICEBERG_JARS],
             "args": ["--units", str(units), "--catalog", config.lakehouse_catalog,
-                     "--namespace", config.partner_lake_dataset, "--table", config.partner_stock_table],
+                     "--namespace", config.partner_lake_dataset, "--table", config.partner_stock_table]
+            + (["--feed", feed_uri] if feed_uri else []),
         },
         "runtimeConfig": {"version": "2.3", "properties": properties},
     }
@@ -253,8 +252,8 @@ def _authorized_session(session=None):
     return AuthorizedSession(credentials)
 
 
-def submit_restock(config: Config, units: int, session=None) -> str:
-    batch_id, body = restock_batch(config, units)
+def submit_restock(config: Config, units: int, session=None, feed_uri: Optional[str] = None) -> str:
+    batch_id, body = restock_batch(config, units, feed_uri=feed_uri)
     parent = f"projects/{config.project_id}/locations/{config.location}"
     resp = _authorized_session(session).post(f"{DATAPROC_API}/{parent}/batches", params={"batchId": batch_id},
                                              json=body, timeout=30)

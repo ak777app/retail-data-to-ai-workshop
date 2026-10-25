@@ -54,7 +54,7 @@ def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
     monkeypatch.setenv("VIRAL_PAUSE_AT_SELL_OUT", "false")
     st.cache_resource.clear()
     at = AppTest.from_file(APP, default_timeout=30).run()
-    assert [t.label for t in at.tabs] == ["Shop", "Ops: viral moment", "Marketing: viral moment",
+    assert [t.label for t in at.tabs] == ["Shop", "Ops: viral moment", "Data platform", "Marketing: viral moment",
                                           "Ask the data agent"]
     next(b for b in at.button if b.label == "Go viral").click().run()
     at.session_state["viral_job"].join(30)
@@ -143,3 +143,16 @@ def test_every_product_has_a_bundled_image():
     with open(SAMPLE_DATA_DIR / "product_master.csv", newline="") as f:
         products = [product_from_row(row) for row in csv.DictReader(f)]
     assert products and not [p.item_number for p in products if not product_image(p)]
+
+
+def test_data_platform_tab_renders_locally():
+    at = AppTest.from_file(str(APP), default_timeout=30).run()
+    assert not at.exception
+    labels = [b.label for b in at.button]
+    for label in ("Ingest with Managed Spark", "Run on AWS with BigQuery Omni", "Load lineage", "Check the catalog",
+                  "Query customer PII as the storefront"):
+        assert at.button(key={"Ingest with Managed Spark": "plat_spark", "Run on AWS with BigQuery Omni": "plat_omni",
+                              "Load lineage": "plat_lineage", "Check the catalog": "plat_catalog",
+                              "Query customer PII as the storefront": "plat_pii"}[label]).disabled
+        assert label in labels
+    assert any('"listing_id": "LST-0017"' in c.value for c in at.code)
