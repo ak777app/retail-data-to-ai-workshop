@@ -20,20 +20,48 @@ as `yeyo_partner_lake.partner_stock`. Each run appends one snapshot per listing,
 read from the partner's JSON feed (--feed, newline-delimited JSON) or generated
 from --units when no feed is given.
 
+The block between the "shared with" markers is also the ingestion cell of
+partner_stock_sync.ipynb, the notebook the Data platform tab links to; a test
+keeps the two identical.
+
   gcloud dataproc batches submit pyspark spark/partner_stock_sync.py -- --units 600
 """
 
-import argparse
-from datetime import datetime, timezone
+import argparse  # noqa: I001 (the shared block below starts with its own imports)
 
 from pyspark.sql import SparkSession
 
-# Glow Lab Beauty (MKT-S004) listings in sample_data/marketplace_listings.csv
+# --- shared with partner_stock_sync.ipynb ---
+from datetime import datetime, timezone
+
 LISTINGS = [
     ("LST-0017", "MKT-S004", "BEA-3001-OM", "BEA-3001"),
     ("LST-0018", "MKT-S004", "BEA-3002-OM", "BEA-3002"),
     ("LST-0019", "MKT-S004", "BEA-3003-OM", "BEA-3003"),
 ]
+SCHEMA = ("listing_id string, seller_id string, omni_item_id string, item_number string, "
+          "warehouse_id string, units_on_hand int, snapshot_ts timestamp, source_system string")
+
+
+def ingest_partner_stock(spark, table, feed=None, units=600, other_units=1500):
+    """Appends one stock snapshot per listing to the Iceberg table, read from the partner's JSON feed if given."""
+    spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {table.rsplit('.', 1)[0]}")
+    spark.sql(f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+          listing_id STRING, seller_id STRING, omni_item_id STRING, item_number STRING,
+          warehouse_id STRING, units_on_hand INT, snapshot_ts TIMESTAMP, source_system STRING
+        ) USING iceberg
+    """)
+    if feed:
+        df = spark.read.schema(SCHEMA).json(feed)
+    else:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        rows = [(lid, sid, omni, item, "GLOWLAB-EVANSTON-DC", units if lid == "LST-0017" else other_units,
+                 now, "glowlab-spark") for lid, sid, omni, item in LISTINGS]
+        df = spark.createDataFrame(rows, SCHEMA)
+    df.writeTo(table).append()
+    return spark.table(table).orderBy("snapshot_ts", ascending=False)
+# --- end shared ---
 
 
 def main() -> None:
@@ -47,25 +75,9 @@ def main() -> None:
     args = parser.parse_args()
 
     spark = SparkSession.builder.appName("glowlab-partner-stock-sync").getOrCreate()
-    fq = f"{args.catalog}.{args.namespace}.{args.table}"
-    spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {args.catalog}.{args.namespace}")
-    spark.sql(f"""
-        CREATE TABLE IF NOT EXISTS {fq} (
-          listing_id STRING, seller_id STRING, omni_item_id STRING, item_number STRING,
-          warehouse_id STRING, units_on_hand INT, snapshot_ts TIMESTAMP, source_system STRING
-        ) USING iceberg
-    """)
-    schema = ("listing_id string, seller_id string, omni_item_id string, item_number string, "
-              "warehouse_id string, units_on_hand int, snapshot_ts timestamp, source_system string")
-    if args.feed:
-        df = spark.read.schema(schema).json(args.feed)
-    else:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        rows = [(lid, sid, omni, item, "GLOWLAB-EVANSTON-DC", args.units if lid == "LST-0017" else args.other_units,
-                 now, "glowlab-spark") for lid, sid, omni, item in LISTINGS]
-        df = spark.createDataFrame(rows, schema)
-    df.writeTo(fq).append()
-    spark.table(fq).orderBy("snapshot_ts", ascending=False).show(6, truncate=False)
+    latest = ingest_partner_stock(spark, f"{args.catalog}.{args.namespace}.{args.table}", feed=args.feed,
+                                  units=args.units, other_units=args.other_units)
+    latest.show(6, truncate=False)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,8 @@ from urllib.parse import quote, urlencode
 from .config import Config
 
 CONSOLE = "https://console.cloud.google.com"
+SPARK_NOTEBOOK = ("https://raw.githubusercontent.com/ak777app/retail-data-to-ai-workshop/main/"
+                  "02-code-assets/yeyo-storefront/spark/partner_stock_sync.ipynb")
 LOOKER_CREATE = "https://datastudio.google.com/reporting/create"
 PARTNER_FEED_ASPECT = "yeyo-partner-feed"
 AWS_S3_PREFIX = "iceberg/partner_stock/"
@@ -32,6 +34,12 @@ class DemoLink(NamedTuple):
     label: str
     url: str
 
+
+
+def spark_notebook_url(config: Config) -> str:
+    """Opens the partner-stock PySpark notebook (same code as the Reset batch job) in Colab Enterprise."""
+    source = quote(config.spark_notebook_url or SPARK_NOTEBOOK, safe=":")
+    return f"{CONSOLE}/vertex-ai/colab/import/{source}?project={config.project_id}"
 
 def _bq_table_url(project: str, dataset: str, table: str) -> str:
     return f"{CONSOLE}/bigquery?project={project}&ws=!1m5!1m4!4m3!1s{project}!2s{dataset}!3s{table}"
@@ -84,6 +92,8 @@ def demo_links(config: Config) -> List[DemoLink]:
     links += [
         DemoLink("3c · Engineering: Spark + Iceberg", f"Knowledge Catalog: {config.partner_stock_table} (Iceberg)",
                  _search_url(p, config.partner_stock_table)),
+        DemoLink("3c · Engineering: Spark + Iceberg", "PySpark notebook: JSON feed ➜ Iceberg (Colab Enterprise)",
+                 spark_notebook_url(config)),
         DemoLink("3c · Engineering: Spark + Iceberg", "Spark batch jobs (Serverless for Apache Spark)",
                  f"{CONSOLE}/dataproc/batches?project={p}"),
         DemoLink("3c · Engineering: Spark + Iceberg", "Lakehouse runtime catalog",

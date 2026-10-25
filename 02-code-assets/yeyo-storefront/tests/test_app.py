@@ -145,14 +145,21 @@ def test_every_product_has_a_bundled_image():
     assert products and not [p.item_number for p in products if not product_image(p)]
 
 
-def test_data_platform_tab_renders_locally():
+def test_data_platform_tab_renders_locally(monkeypatch, tmp_path):
+    monkeypatch.setenv("PUBLISH_MODE", "local")
+    monkeypatch.setenv("CATALOG_SOURCE", "sample")
+    monkeypatch.setenv("LOCAL_EVENTS_FILE", str(tmp_path / "events.jsonl"))
     at = AppTest.from_file(str(APP), default_timeout=30).run()
     assert not at.exception
     labels = [b.label for b in at.button]
-    for label in ("Ingest with Managed Spark", "Run on AWS with BigQuery Omni", "Load lineage", "Check the catalog",
+    for label in ("Run on AWS with BigQuery Omni", "Load lineage", "Check the catalog",
                   "Query customer PII as the storefront"):
-        assert at.button(key={"Ingest with Managed Spark": "plat_spark", "Run on AWS with BigQuery Omni": "plat_omni",
+        assert at.button(key={"Run on AWS with BigQuery Omni": "plat_omni",
                               "Load lineage": "plat_lineage", "Check the catalog": "plat_catalog",
                               "Query customer PII as the storefront": "plat_pii"}[label]).disabled
         assert label in labels
     assert any('"listing_id": "LST-0017"' in c.value for c in at.code)
+    assert "Ingest with Managed Spark" not in labels
+    notebook = [b for b in at.link_button if b.label == "Open the PySpark notebook"]
+    assert notebook and "/vertex-ai/colab/import/https:%2F%2Fraw.githubusercontent.com" in notebook[0].url
+    assert "%2Fspark%2Fpartner_stock_sync.ipynb?project=" in notebook[0].url

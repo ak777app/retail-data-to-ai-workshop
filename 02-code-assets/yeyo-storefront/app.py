@@ -47,7 +47,7 @@ from storefront.ops import (
     run_query,
     store_stock_sql,
 )
-from storefront.ops import TERMINAL_BATCH_STATES, batch_state, submit_restock
+from storefront.ops import TERMINAL_BATCH_STATES, batch_state, spark_notebook_url, submit_restock
 from storefront import platform as lake
 from storefront import agent as data_agent
 from storefront.viral import ViralConfig, ViralJob, viral_listing
@@ -657,14 +657,11 @@ with platform_tab:
     c1.code(lake.partner_feed_jsonl(lake.partner_feed_rows(p_units)), language="json")
     lake_table = f"{config.lakehouse_catalog}.{config.partner_lake_dataset}.{config.partner_stock_table}"
     c2.markdown(f"Glow Lab drops this JSON stock feed in `gs://{config.lakehouse_bucket or 'LAKEHOUSE_BUCKET'}"
-                f"/partner_feed/glowlab/`. A **Serverless for Apache Spark** batch (plain PySpark, no cluster) reads "
-                f"it and appends it to the Apache Iceberg table `{lake_table}` through the BigLake REST catalog. "
-                "BigQuery queries the same files: no copy, no lock-in.")
-    v_busy = bool(ss.viral_job and ss.viral_job.is_running)
-    if c2.button("Ingest with Managed Spark", type="primary", key="plat_spark",
-                 disabled=not live or not config.lakehouse_bucket or v_busy or p_restocking):
-        _ingest_partner_feed(p_units)
-        st.rerun()
+                f"/partner_feed/glowlab/`. The PySpark notebook reads it on **Serverless for Apache Spark** (no "
+                f"cluster) and appends it to the Apache Iceberg table `{lake_table}` through the BigLake REST catalog. "
+                "**Reset demo** runs the same code as a Serverless Spark batch job. BigQuery queries the same files: "
+                "no copy, no lock-in.")
+    c2.link_button("Open the PySpark notebook", spark_notebook_url(config), type="primary")
     if c2.button("Read the Iceberg table in BigQuery", key="plat_iceberg", disabled=not live):
         _platform_call("plat_iceberg_result", lambda: run_query(config, lake.iceberg_rows_sql(config), {}))
 
