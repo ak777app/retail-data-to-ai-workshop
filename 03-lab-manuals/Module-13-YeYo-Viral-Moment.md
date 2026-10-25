@@ -110,7 +110,7 @@ rules:
 - name: partner-snapshot-fresh
   dimension: FRESHNESS
   rowConditionExpectation:
-    sqlExpression: "partner_snapshot_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)"
+    sqlExpression: "seller_id = 'MKT-S003' OR partner_snapshot_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)"
   threshold: 1.0
 YAML
 gcloud dataplex datascans create data-quality yeyo-oversell-dq --location=$LOCATION \
@@ -236,7 +236,7 @@ S3   s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/  (Parquet, wri
                                                                          └─► vw_oversell_risk
 ```
 
-Omni needs a billed project (not the sandbox) and runs on demand in `aws-us-east-1`. A query in `us-central1` can't join the S3 table directly, and a cross-region join took about a minute, too slow for the Ops tab. So FitGear's stock is loaded once: S3, then `us-east4`, then a copy into `capstone_ds`. The view reads that local copy. The demo doesn't sell FitGear's products, so **Reset demo** only restocks Glow Lab (Spark) and the London stores.
+Omni needs a billed project (not the sandbox) and runs on demand in `aws-us-east-1`. A query in `us-central1` can't join the S3 table directly, and a cross-region join took about a minute, too slow for the Ops tab. So FitGear's stock is loaded once: S3, then `us-east4`, then a copy into `capstone_ds`. The view reads that local copy. The demo doesn't sell FitGear's products, so **Reset demo** only restocks Glow Lab (Spark) and the London stores. FitGear's snapshot then ages, so the `partner-snapshot-fresh` data quality rule skips `MKT-S003`.
 
 1. Create the connection and datasets, and note the identity the connection prints:
 
@@ -272,4 +272,4 @@ Optional, open format on the AWS side: Omni exports only CSV, JSON, Avro or Parq
 bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.partner_stock_iceberg\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='ICEBERG', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/fitgear_partner_stock/metadata/LATEST.metadata.json'])"
 ```
 
-Replace `LATEST.metadata.json` with the newest `*.metadata.json` file name, and re-run the command after each Athena write.
+Replace `LATEST.metadata.json` with the newest `*.metadata.json` file name, and re-run the command after each Athena write. To show the Iceberg link in the Demo links panel, run `gcloud run services update yeyo-storefront --region us-central1 --update-env-vars AWS_ICEBERG_TABLE=partner_stock_iceberg`.

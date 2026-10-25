@@ -321,7 +321,8 @@ def _aws_config(config, **kw):
 
 def test_aws_demo_links_add_scene_next_to_spark(config):
     assert "3d · Engineering: AWS S3 + BigQuery Omni" not in group_links(demo_links(config))
-    links = demo_links(_aws_config(config, agent_url="http://a"))
+    assert not any("Iceberg): " in link.label for link in demo_links(_aws_config(config)))
+    links = demo_links(_aws_config(config, agent_url="http://a", aws_iceberg_table="partner_stock_iceberg"))
     grouped = group_links(links)
     assert "3c · Engineering: Spark + Iceberg" in grouped
     aws = grouped["3d · Engineering: AWS S3 + BigQuery Omni"]

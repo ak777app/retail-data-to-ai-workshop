@@ -93,14 +93,15 @@ def demo_links(config: Config) -> List[DemoLink]:
         links += [
             DemoLink(scene, f"BigLake on S3 (Parquet): {aws}.{config.aws_s3_table}",
                      _bq_table_url(p, aws, config.aws_s3_table)),
-            DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_iceberg_table}",
-                     _bq_table_url(p, aws, config.aws_iceberg_table)),
             DemoLink(scene, f"Cross-cloud copy in GCP: {ds}.{config.partner_replica_table}",
                      _bq_table_url(p, ds, config.partner_replica_table)),
             DemoLink(scene, f"Amazon S3: {config.aws_s3_bucket}",
                      f"https://s3.console.aws.amazon.com/s3/buckets/{config.aws_s3_bucket}"
                      f"?region={config.aws_location.removeprefix('aws-')}"),
         ]
+        if config.aws_iceberg_table:
+            links.insert(-1, DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_iceberg_table}",
+                                      _bq_table_url(p, aws, config.aws_iceberg_table)))
     if config.agent_url:
         links.append(DemoLink("4 · Agent acts", "Data analyst agent (adk web)", config.agent_url))
     return links
