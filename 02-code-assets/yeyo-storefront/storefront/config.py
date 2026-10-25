@@ -92,6 +92,7 @@ class Config:
     aws_s3_table: str = "partner_stock_s3"
     aws_iceberg_table: str = "partner_stock_iceberg"
     aws_stage_dataset: str = "yeyo_partner_east4"
+    aws_stage_location: str = "us-east4"
     partner_replica_table: str = "partner_stock_aws_replica"
     dq_scan_id: str = "yeyo-oversell-dq"
     agent_url: str = ""
@@ -188,6 +189,7 @@ def load_config(env_file: Optional[os.PathLike] = None) -> Config:
         aws_s3_table=_env("AWS_S3_TABLE", "partner_stock_s3"),
         aws_iceberg_table=_env("AWS_ICEBERG_TABLE", "partner_stock_iceberg"),
         aws_stage_dataset=_env("AWS_STAGE_DATASET", "yeyo_partner_east4"),
+        aws_stage_location=_env("AWS_STAGE_LOCATION", "us-east4"),
         partner_replica_table=_env("BQ_PARTNER_REPLICA_TABLE", "partner_stock_aws_replica"),
         dq_scan_id=_env("DQ_SCAN_ID", "yeyo-oversell-dq"),
         agent_url=_env("AGENT_URL", ""),

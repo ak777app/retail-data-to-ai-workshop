@@ -361,7 +361,7 @@ def test_aws_restock_sql_and_steps(config):
     job = AwsRestock(cfg, listings, {"LST-0017": 600, "LST-0018": 1500}, client_factory=Client).run()
     assert (job.state, job.error) == ("SUCCEEDED", "")
     assert [(c[0], c[1]) for c in calls] == [("aws-us-east-1", "query"), ("aws-us-east-1", "query"),
-                                             (cfg.location, "copy")]
+                                             ("us-east4", "copy")]
     rows = calls[0][3][0].values
     assert [(r.struct_values["listing_id"], r.struct_values["units_on_hand"]) for r in rows] == [
         ("LST-0017", 600), ("LST-0018", 1500)]

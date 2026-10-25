@@ -336,7 +336,7 @@ class AwsRestock:
             omni.query(omni_stage_sql(cfg), job_config=bigquery.QueryJobConfig(query_parameters=[
                 bigquery.ScalarQueryParameter("seller_id", "STRING", self.listings[0].seller_id)])).result()
             self.state = "COPYING"
-            self._client(cfg.location).copy_table(
+            self._client(cfg.aws_stage_location).copy_table(
                 f"{cfg.project_id}.{cfg.aws_stage_dataset}.{cfg.partner_stock_table}",
                 cfg.fq_table(cfg.partner_replica_table),
                 job_config=bigquery.CopyJobConfig(write_disposition="WRITE_TRUNCATE")).result()
