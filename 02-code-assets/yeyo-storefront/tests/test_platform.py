@@ -161,6 +161,9 @@ def test_query_pii_refuses_untagged_columns(config):
     client.get_table = lambda t: SimpleNamespace(schema=[field("email", ["t1"]), field("phone_number", None)])
     with pytest.raises(RuntimeError, match="phone_number"):
         lake.query_pii(config, client=client)
+    client.get_table = lambda t: SimpleNamespace(schema=[field("email", ["t1"])])
+    with pytest.raises(RuntimeError, match="phone_number"):
+        lake.query_pii(config, client=client)
     assert not ran
     client.get_table = lambda t: SimpleNamespace(schema=[field("email", ["t1"]), field("phone_number", ["t2"])])
     assert lake.query_pii(config, client=client) == [] and ran

@@ -218,7 +218,8 @@ def query_pii(config: Config, client=None) -> List[Dict]:
 
     client = client or bigquery.Client(project=config.project_id or None, location=config.location)
     schema = client.get_table(config.fq_table("customer_master")).schema
-    untagged = [f.name for f in schema if f.name in PII_COLUMNS and not (f.policy_tags and f.policy_tags.names)]
+    tagged = {f.name for f in schema if f.policy_tags and f.policy_tags.names}
+    untagged = [c for c in PII_COLUMNS if c not in tagged]
     if untagged:
         raise RuntimeError(f"{', '.join(untagged)} not protected yet: run python -m storefront.governance first")
     return run_query(config, pii_sql(config), {}, client=client)
