@@ -31,6 +31,7 @@ from .config import CHANNELS, SAMPLE_DATA_DIR, Config
 logger = logging.getLogger(__name__)
 
 DEFAULT_ONLINE_FULFILLMENT_LOCATION = "WHE-IL-WH"
+PRODUCT_IMAGE_DIR = SAMPLE_DATA_DIR.parent / "static" / "products"
 
 
 @dataclass(frozen=True)
@@ -133,6 +134,14 @@ def _first(row: dict, *keys, default=""):
         if v not in (None, ""):
             return v
     return default
+
+
+def product_image(product: Product) -> str:
+    """An http(s) image_uri, else the bundled packshot static/products/<item_number>.jpg, else ""."""
+    if product.image_uri.startswith(("http://", "https://")):
+        return product.image_uri
+    path = PRODUCT_IMAGE_DIR / f"{product.item_number}.jpg"
+    return str(path) if path.exists() else ""
 
 
 def product_from_row(row: dict) -> Product:
