@@ -330,3 +330,19 @@ def test_aws_demo_links_add_scene_next_to_spark(config):
     assert any(link.url.endswith("!2syeyo_partner_aws!3spartner_stock_s3") for link in aws)
     assert aws[-1].url == "https://s3.console.aws.amazon.com/s3/buckets/yeyo-glowlab-1?region=us-east-1"
     assert links[-1].url == "http://a"
+
+
+def test_catalog_link_lists_partner_feeds_from_both_clouds(config):
+    catalog = [link for link in demo_links(config) if "Google Cloud + AWS" in link.label]
+    assert len(catalog) == 1 and catalog[0].scene == "3b · CDO: lineage & catalog"
+    assert catalog[0].url.endswith("&q=aspect%3Ayeyo-partner-feed")
+
+
+def test_partner_feed_aspect_matches_tagging_script():
+    from pathlib import Path
+
+    from storefront.ops import PARTNER_FEED_ASPECT
+
+    catalog = Path(__file__).resolve().parents[1] / "catalog"
+    assert f'ASPECT="{PARTNER_FEED_ASPECT}"' in (catalog / "tag_partner_feeds.sh").read_text()
+    assert f"name: {PARTNER_FEED_ASPECT}" in (catalog / "partner_feed_aspect_type.yaml").read_text()
