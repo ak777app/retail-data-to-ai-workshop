@@ -61,27 +61,42 @@ def iceberg_rows_sql(config: Config) -> str:
 
 
 # ---------------------------------------------------------------- 2. BigQuery Omni: query FitGear on AWS
+def omni_result_fq(config: Config) -> str:
+    return f"{config.project_id}.{config.aws_result_dataset}.{config.aws_result_table}"
+
+
 def omni_sql(config: Config) -> str:
-    """Low-stock question answered next to the data in S3; only the matching rows come back."""
-    return (f"SELECT listing_id, item_number, units_on_hand, snapshot_ts\n"
+    """Low-stock question answered next to the data in S3; only the matching rows land in Google Cloud."""
+    return (f"CREATE OR REPLACE TABLE `{omni_result_fq(config)}` AS\n"
+            f"SELECT listing_id, item_number, units_on_hand, snapshot_ts\n"
             f"FROM `{config.project_id}.{config.aws_dataset}.{config.aws_s3_table}`\n"
             f"WHERE seller_id = 'MKT-S003' AND units_on_hand < 100")
 
 
+def omni_job_url(config: Config, job_id: str) -> str:
+    return (f"{CONSOLE}/bigquery?project={quote(config.project_id)}"
+            f"&j=bq:{config.aws_location}:{job_id}&page=queryresults")
+
+
 def run_omni_query(config: Config, client=None) -> Dict:
+    """Runs the query in the AWS region; lineage records S3 -> fitgear_stock -> result table."""
     from google.cloud import bigquery
 
     client = client or bigquery.Client(project=config.project_id or None, location=config.aws_location)
     started = time.monotonic()
     job = client.query(omni_sql(config), location=config.aws_location)
-    rows = [dict(r.items()) for r in job.result()]
+    job.result()
+    table = client.get_table(omni_result_fq(config))
+    rows = [dict(r.items()) for r in client.list_rows(table)]
     return {
         "rows": rows,
         "seconds": round(time.monotonic() - started, 1),
         "bytes_processed": job.total_bytes_processed or 0,
         "bytes_billed": job.total_bytes_billed or 0,
-        "result_bytes": len(json.dumps(rows, default=str).encode()),
+        "result_bytes": table.num_bytes or len(json.dumps(rows, default=str).encode()),
+        "result_table": omni_result_fq(config),
         "job_id": job.job_id,
+        "job_url": omni_job_url(config, job.job_id),
         "location": config.aws_location,
     }
 
@@ -96,14 +111,24 @@ def human_bytes(n: int) -> str:
 
 # ---------------------------------------------------------------- 3. End-to-end lineage
 def short_name(fqn: str) -> str:
+    if fqn.startswith("s3:"):
+        bucket, _, path = fqn[3:].partition(".")
+        return f"s3://{bucket}/{path.strip('`').split('/metadata/')[0]}/"
     return fqn.split(":", 1)[-1].split(".")[-1] if fqn.startswith(("bigquery:", "biglake:")) else fqn.split(":", 1)[-1]
 
 
 def lineage_edges(config: Config, session=None, max_nodes: int = 30) -> List[Tuple[str, str]]:
-    """Walks Dataplex lineage upstream from the alert table (live links recorded by BigQuery and Spark)."""
+    """Live links recorded by BigQuery and Spark: upstream of the alert table, plus the Omni chain on AWS."""
     s = _authorized_session(session)
-    url = f"{LINEAGE_API}/projects/{config.project_id}/locations/{config.location}:searchLinks"
-    start = f"bigquery:{config.fq_table(config.oversell_alerts_table)}"
+    edges = _walk_upstream(s, config, config.location, f"bigquery:{config.fq_table(config.oversell_alerts_table)}",
+                           max_nodes)
+    if config.aws_s3_bucket:
+        edges += _walk_upstream(s, config, config.aws_location, f"bigquery:{omni_result_fq(config)}", max_nodes)
+    return edges
+
+
+def _walk_upstream(s, config: Config, location: str, start: str, max_nodes: int) -> List[Tuple[str, str]]:
+    url = f"{LINEAGE_API}/projects/{config.project_id}/locations/{location}:searchLinks"
     edges, seen, queue = [], set(), [start]
     while queue and len(seen) < max_nodes:
         target = queue.pop(0)
@@ -121,12 +146,12 @@ def lineage_edges(config: Config, session=None, max_nodes: int = 30) -> List[Tup
 
 
 def documented_edges(config: Config) -> List[Tuple[str, str]]:
-    """Hops lineage doesn't record (Pub/Sub subscriptions, the one-off cross-cloud load), drawn dashed."""
+    """Hops lineage doesn't record (Pub/Sub subscriptions, the partner's own writers), drawn dashed."""
     edges = [(f"Pub/Sub {config.clickstream_topic}", config.clickstream_table),
              (f"Pub/Sub {config.pubsub_topic}", config.marketplace_orders_table),
              ("JSON feed (GCS)", config.partner_stock_table)]
     if config.aws_s3_bucket:
-        edges.append((f"{config.aws_s3_table} (S3, Omni)", config.partner_replica_table))
+        edges.append(("Amazon Athena (AWS)", f"s3://{config.aws_s3_bucket}/iceberg/partner_stock/"))
     return edges
 
 
@@ -175,7 +200,9 @@ def governed_assets(config: Config, aws_catalog_location: str = "us-east4") -> L
         GovernedAsset(config.aws_s3_table, "Partner stock (FitGear)", "AWS", "Amazon S3 (Iceberg)", "Internal",
                       "IAM on connection + dataset", "Marketplace", aws_catalog_location,
                       f"@bigquery-{config.aws_location}", f"{bq}/{config.aws_dataset}/tables/{config.aws_s3_table}"),
-        table(config.partner_replica_table, "Partner stock (FitGear)", "Internal", dataset_iam, "Marketplace"),
+        GovernedAsset(config.aws_result_table, "Partner stock (FitGear)", "Google Cloud", "BigQuery (Omni result)",
+                      "Internal", f"IAM on dataset {config.aws_result_dataset}", "Marketplace", aws_catalog_location,
+                      "@bigquery", f"{bq}/{config.aws_result_dataset}/tables/{config.aws_result_table}"),
         table("vw_partner_stock", "Partner stock", "Internal", dataset_iam, "Marketplace"),
         table(config.oversell_view, "Alerts", "Internal", dataset_iam, "Operations"),
         table(config.oversell_alerts_table, "Alerts", "Internal", dataset_iam, "Operations"),

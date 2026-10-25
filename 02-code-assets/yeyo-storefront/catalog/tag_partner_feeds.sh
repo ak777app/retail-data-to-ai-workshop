@@ -74,10 +74,10 @@ tag "$LOCATION" @biglake \
   "Glow Lab" MKT-S004 GCP "Cloud Storage" Iceberg "Serverless Spark" "Every Reset demo"
 tag "$AWS_CATALOG_LOCATION" "@bigquery-$AWS_LOCATION" "$BQ/$AWS_DATASET/tables/fitgear_stock" \
   "FitGear Direct" MKT-S003 AWS "Amazon S3" Iceberg "Amazon Athena" "One-off"
-tag "$LOCATION" @bigquery "$BQ/capstone_ds/tables/partner_stock_aws_replica" \
-  "FitGear Direct" MKT-S003 GCP BigQuery "BigQuery table" "Cross-cloud copy from S3" "One-off"
+tag "$AWS_CATALOG_LOCATION" @bigquery "$BQ/yeyo_partner_east4/tables/fitgear_low_stock" \
+  "FitGear Direct" MKT-S003 GCP BigQuery "BigQuery table" "BigQuery Omni query result" "Each Omni run"
 tag "$LOCATION" @bigquery "$BQ/capstone_ds/tables/vw_partner_stock" \
-  "Glow Lab + FitGear Direct" "MKT-S004, MKT-S003" "GCP + AWS" BigQuery "BigQuery view" "UNION ALL of both feeds" "Live"
+  "Glow Lab" MKT-S004 GCP BigQuery "BigQuery view" "View over the Iceberg table" "Live"
 
 if [ "$TAGGED" -eq 0 ]; then
   echo "No partner stock assets were tagged; check the project ID and that the tables exist." >&2

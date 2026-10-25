@@ -70,15 +70,21 @@ def test_upload_feed_and_spark_batch_reads_it(config):
 
 def test_omni_query_runs_in_aws_region_and_reports_bytes(config):
     cfg = _aws(config)
-    job = SimpleNamespace(result=lambda: [{"listing_id": "LST-0024", "units_on_hand": 40}], job_id="j1",
-                          total_bytes_processed=746, total_bytes_billed=10 * 1024 * 1024)
+    job = SimpleNamespace(result=list, job_id="j1", total_bytes_processed=746,
+                          total_bytes_billed=10 * 1024 * 1024)
     seen = {}
-    client = SimpleNamespace(query=lambda sql, location: seen.update(sql=sql, location=location) or job)
+    table = SimpleNamespace(num_bytes=58)
+    client = SimpleNamespace(query=lambda sql, location: seen.update(sql=sql, location=location) or job,
+                             get_table=lambda fq: seen.update(table=fq) or table,
+                             list_rows=lambda t: [{"listing_id": "LST-0024", "units_on_hand": 40}])
     out = lake.run_omni_query(cfg, client=client)
     assert seen["location"] == "aws-us-east-1"
+    assert seen["sql"].startswith("CREATE OR REPLACE TABLE `p1.yeyo_partner_east4.fitgear_low_stock` AS")
     assert "`p1.yeyo_partner_aws.fitgear_stock`" in seen["sql"]
+    assert seen["table"] == out["result_table"] == "p1.yeyo_partner_east4.fitgear_low_stock"
     assert out["rows"] == [{"listing_id": "LST-0024", "units_on_hand": 40}]
-    assert out["bytes_processed"] == 746 and out["result_bytes"] < 100
+    assert out["bytes_processed"] == 746 and out["result_bytes"] == 58
+    assert out["job_url"].endswith("?project=p1&j=bq:aws-us-east-1:j1&page=queryresults")
     assert lake.human_bytes(746) == "746 bytes" and lake.human_bytes(10 * 1024 * 1024) == "10.0 MB"
 
 
@@ -99,8 +105,32 @@ def test_lineage_walks_upstream_from_alerts(config):
     assert len(edges) == 4
     dot = lake.lineage_dot(edges, lake.documented_edges(_aws(config)))
     assert '"partner_stock" -> "vw_partner_stock";' in dot
-    assert '"fitgear_stock (S3, Omni)" -> "partner_stock_aws_replica" [style=dashed];' in dot
+    assert '"Amazon Athena (AWS)" -> "s3://yeyo-glowlab-1/iceberg/partner_stock/" [style=dashed];' in dot
+    assert "replica" not in dot
     assert '"Pub/Sub yeyo-clickstream" -> "clickstream_events" [style=dashed];' in dot
+
+
+def test_lineage_includes_the_omni_chain_on_aws(config):
+    graph = {
+        "bigquery:p1.yeyo_partner_east4.fitgear_low_stock": ["bigquery:p1.yeyo_partner_aws.fitgear_stock"],
+        "bigquery:p1.yeyo_partner_aws.fitgear_stock": [
+            "s3:yeyo-glowlab-1.`iceberg/partner_stock/metadata/00003-abc.metadata.json`"],
+    }
+    locations = []
+
+    def post(url, json, timeout):
+        locations.append(url.split("/locations/")[1].split(":")[0])
+        target = json["target"]["fullyQualifiedName"]
+        return FakeResp({"links": [{"source": {"fullyQualifiedName": s}} for s in graph.get(target, [])]})
+
+    edges = lake.lineage_edges(_aws(config), session=SimpleNamespace(post=post))
+    assert set(locations) == {"us-central1", "aws-us-east-1"}
+    dot = lake.lineage_dot(edges, lake.documented_edges(_aws(config)))
+    assert '"s3://yeyo-glowlab-1/iceberg/partner_stock/" -> "fitgear_stock";' in dot
+    assert '"fitgear_stock" -> "fitgear_low_stock";' in dot
+    locations.clear()
+    lake.lineage_edges(config, session=SimpleNamespace(post=post))
+    assert locations == ["us-central1"]
 
 
 def test_governed_assets_cover_every_domain(config):
@@ -110,7 +140,9 @@ def test_governed_assets_cover_every_domain(config):
     fitgear = next(a for a in assets if a.cloud == "AWS")
     assert (fitgear.name, fitgear.catalog_location, fitgear.entry_group) == (
         "fitgear_stock", "us-east4", "@bigquery-aws-us-east-1")
-    assert {"fitgear_stock", "partner_stock_aws_replica"}.isdisjoint(a.name for a in lake.governed_assets(config))
+    result = next(a for a in assets if a.name == "fitgear_low_stock")
+    assert (result.cloud, result.catalog_location, result.entry_group) == ("Google Cloud", "us-east4", "@bigquery")
+    assert {"fitgear_stock", "fitgear_low_stock"}.isdisjoint(a.name for a in lake.governed_assets(config))
     assert lake.governed_search_url(config).endswith("&q=aspect%3Ayeyo-governed-asset")
     assert all(lake.asset_url(config, a).startswith("https://console.cloud.google.com/") for a in assets)
 

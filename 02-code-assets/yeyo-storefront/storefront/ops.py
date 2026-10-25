@@ -105,10 +105,12 @@ def demo_links(config: Config) -> List[DemoLink]:
     if config.aws_s3_bucket:
         scene, aws = "3d · Engineering: AWS S3 + BigQuery Omni", config.aws_dataset
         links += [
-            DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_s3_table}",
+            DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_s3_table} (Query it here; Lineage tab)",
                      _bq_table_url(p, aws, config.aws_s3_table)),
-            DemoLink(scene, f"Cross-cloud copy in GCP: {ds}.{config.partner_replica_table}",
-                     _bq_table_url(p, ds, config.partner_replica_table)),
+            DemoLink(scene, f"Omni result in GCP: {config.aws_result_dataset}.{config.aws_result_table}",
+                     _bq_table_url(p, config.aws_result_dataset, config.aws_result_table)),
+            DemoLink(scene, f"BigQuery jobs in {config.aws_location} (Omni executions)",
+                     f"{CONSOLE}/bigquery?project={p}&page=jobs"),
             DemoLink(scene, f"Amazon S3: FitGear's Iceberg files in {config.aws_s3_bucket}/{AWS_S3_PREFIX}",
                      f"https://s3.console.aws.amazon.com/s3/buckets/{config.aws_s3_bucket}"
                      f"?region={config.aws_location.removeprefix('aws-')}&prefix={AWS_S3_PREFIX}"),
