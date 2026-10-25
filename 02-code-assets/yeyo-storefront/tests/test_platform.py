@@ -167,3 +167,30 @@ def test_query_pii_refuses_untagged_columns(config):
     assert not ran
     client.get_table = lambda t: SimpleNamespace(schema=[field("email", ["t1"]), field("phone_number", ["t2"])])
     assert lake.query_pii(config, client=client) == [] and ran
+
+
+def test_notebook_ingestion_cell_is_the_batch_jobs_code():
+    import json
+    from pathlib import Path
+
+    spark_dir = Path(__file__).resolve().parents[1] / "spark"
+    script = (spark_dir / "partner_stock_sync.py").read_text()
+    shared = script.split("# --- shared with partner_stock_sync.ipynb ---\n")[1].split("# --- end shared ---")[0]
+    nb = json.loads((spark_dir / "partner_stock_sync.ipynb").read_text())
+    code = ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
+    assert shared.strip() in code, "copy the shared block of partner_stock_sync.py into the notebook's ingest cell"
+    assert any("ingest_partner_stock(spark, TABLE_FQ, feed=FEED)" in c for c in code)
+    assert "ingest_partner_stock(spark, " in script.split("def main")[1]
+
+
+def test_spark_notebook_url_imports_the_repo_notebook(config):
+    import dataclasses
+
+    from storefront.ops import spark_notebook_url
+
+    url = spark_notebook_url(config)
+    assert url.startswith("https://console.cloud.google.com/vertex-ai/colab/import/https:%2F%2Fraw.githubusercontent"
+                          ".com%2Fak777app%2Fretail-data-to-ai-workshop%2Fmain%2F")
+    assert url.endswith(f"partner_stock_sync.ipynb?project={config.project_id}")
+    assert spark_notebook_url(dataclasses.replace(config, spark_notebook_url="https://x/y.ipynb")).startswith(
+        "https://console.cloud.google.com/vertex-ai/colab/import/https:%2F%2Fx%2Fy.ipynb")

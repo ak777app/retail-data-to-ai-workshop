@@ -24,6 +24,7 @@ The listing keeps saying `IN_STOCK` while the partner's feed runs out; the view,
 | `storefront/viral.py` | Viral simulator: rising traffic curve for one listing, clickstream + order events |
 | `storefront/ops.py` | Ops tab queries, alert insert and the Demo links panel |
 | `spark/partner_stock_sync.py` | Spark job that appends partner stock snapshots to the Iceberg table |
+| `spark/partner_stock_sync.ipynb` | PySpark notebook with the same ingestion code, linked from the Data platform tab (section 10) |
 | `storefront/marketing.py` | Marketing tab queries on `vw_marketing_viral` and the next-best-action rule |
 | `sql/viral_moment.sql` | `clickstream_events`, `vw_oversell_risk`, `vw_marketing_viral`, `oversell_alerts` |
 | `catalog/tag_partner_feeds.sh` | Tags every partner stock table, on Google Cloud and AWS, with one Knowledge Catalog aspect (section 9) |
@@ -74,7 +75,7 @@ The Iceberg Spark runtime and GCP bundle jars are staged in the bucket (Maven Ce
 
 ```
 M=https://maven-central.storage-download.googleapis.com/maven2/org/apache/iceberg
-for A in iceberg-spark-runtime-3.5_2.13 iceberg-gcp-bundle; do curl -sfO $M/$A/1.10.2/$A-1.10.2.jar; done
+for A in iceberg-spark-runtime-3.5_2.13 iceberg-spark-runtime-4.0_2.13 iceberg-gcp-bundle; do curl -sfO $M/$A/1.10.2/$A-1.10.2.jar; done
 gcloud storage cp iceberg-*.jar gs://$BUCKET/jars/ && gcloud storage cp spark/partner_stock_sync.py gs://$BUCKET/spark/
 
 C=spark.sql.catalog.yeyo_lake
@@ -84,7 +85,7 @@ gcloud dataproc batches submit pyspark gs://$BUCKET/spark/partner_stock_sync.py 
   -- --units 600
 ```
 
-Without `--feed`, the job generates the snapshot from `--units`. The storefront's **Reset demo** and the Data platform tab's **Ingest with Managed Spark** (section 10) first drop Glow Lab's JSON stock feed in `gs://$BUCKET/partner_feed/glowlab/`, then pass it as `--feed gs://...json`, so Spark reads the partner's JSON and appends it to the Iceberg table. Each run appends a fresh snapshot (600 units for `LST-0017`). Before each demo, restock the partner either by re-running this command or by pressing **Reset demo** on the Ops tab (section 5). Check BigQuery reads the same table Spark wrote:
+Without `--feed`, the job generates the snapshot from `--units`. The storefront's **Reset demo** (section 5) first drops Glow Lab's JSON stock feed in `gs://$BUCKET/partner_feed/glowlab/`, then pass it as `--feed gs://...json`, so Spark reads the partner's JSON and appends it to the Iceberg table. Each run appends a fresh snapshot (600 units for `LST-0017`). Before each demo, restock the partner either by re-running this command or by pressing **Reset demo** on the Ops tab (section 5). Check BigQuery reads the same table Spark wrote:
 
 ```
 bq query --use_legacy_sql=false "SELECT * FROM \`$PROJECT_ID.yeyo_lake.yeyo_partner_lake.partner_stock\` ORDER BY snapshot_ts DESC"
@@ -92,6 +93,8 @@ gcloud storage ls -r gs://$BUCKET/iceberg/ | head
 ```
 
 Note: BigQuery can't run DDL/DML on Iceberg REST catalog tables; Spark (or any Iceberg engine) owns writes.
+
+**The same ingestion as a notebook.** `spark/partner_stock_sync.ipynb` walks through it cell by cell: it reads the newest feed in `gs://$BUCKET/partner_feed/glowlab/`, starts a Serverless for Apache Spark session (runtime 3.0, Spark Connect, the `iceberg-spark-runtime-4.0_2.13` jar, the same catalog properties and the same `$SPARK_SA` service account as the batch), appends the feed to the Iceberg table and reads it back from BigQuery. Its ingest cell is the block between the `# --- shared with partner_stock_sync.ipynb ---` markers in `spark/partner_stock_sync.py`, the file Reset submits as the batch job; `tests/test_platform.py` fails if the two differ. Open it from the Data platform tab or the Demo links panel (scene 3c), which import it into Colab Enterprise from the fork's `main` branch. Run the cells top to bottom; the session takes about a minute to start, and the last cell stops it. Set `SPARK_NOTEBOOK_URL` to a raw `.ipynb` URL to open a different copy. After you change `partner_stock_sync.py`, re-upload it with `gcloud storage cp spark/partner_stock_sync.py gs://$BUCKET/spark/`.
 
 ## 4. Clickstream topic, tables, view and data quality scan
 
@@ -311,7 +314,7 @@ Open any result and the **YeYo partner feed** aspect shows where the data lives 
 
 The **Data platform** tab sits next to **Ops: viral moment** and shows the four platform points on their own, live:
 
-1. **Managed Spark ➜ Iceberg:** **Ingest with Managed Spark** drops Glow Lab's JSON feed in `gs://$BUCKET/partner_feed/glowlab/` and runs the section 3 Serverless Spark batch with `--feed`. **Read the Iceberg table in BigQuery** shows the rows Spark appended.
+1. **Managed Spark ➜ Iceberg:** the tab shows Glow Lab's JSON feed. **Open the PySpark notebook** opens the section 3 notebook in Colab Enterprise; run it to ingest the feed into Iceberg on Serverless Spark. **Reset demo** runs the same code as a Serverless Spark batch with `--feed`. **Read the Iceberg table in BigQuery** shows the rows Spark appended.
 2. **BigQuery Omni on AWS:** **Run on AWS with BigQuery Omni** runs a low-stock query on `yeyo_partner_aws.fitgear_stock` in `aws-us-east-1`. It shows the bytes scanned in AWS, the bytes returned to Google Cloud (one row, about 120 bytes) and the billed bytes (Omni bills a 10 MB minimum per query). The Iceberg files never leave S3.
 3. **End-to-end lineage:** **Load lineage** walks Dataplex lineage upstream from `oversell_alerts` and draws it: Pub/Sub ➜ orders and clickstream, the JSON feed ➜ Spark's Iceberg table, FitGear's S3 table ➜ its copy, then `vw_partner_stock` ➜ `vw_oversell_risk` ➜ `oversell_alerts`. Dashed arrows are hops the lineage API doesn't record.
 4. **One Knowledge Catalog with access control:** a second aspect, `yeyo-governed-asset` (domain, cloud, storage, sensitivity, access control, owner), tags orders, clickstream, both partner feeds, FitGear's S3 table, alerts and `customer_master`. `customer_master.email` and `phone_number` get policy tags in a `YeYo governance` taxonomy with masking rules (email mask, last four characters). The storefront and data agent service accounts are Masked Readers, and the presenter is a Fine-Grained Reader:
