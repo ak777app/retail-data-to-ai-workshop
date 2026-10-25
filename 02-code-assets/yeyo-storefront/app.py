@@ -725,7 +725,7 @@ with platform_tab:
     if g2.button("Check the catalog", key="plat_catalog", disabled=not live):
         _platform_call("plat_catalog_result", lambda: lake.search_governed(config))
     if g3.button("Query customer PII as the storefront", key="plat_pii", disabled=not live):
-        _platform_call("plat_pii_result", lambda: run_query(config, lake.pii_sql(config), {}))
+        _platform_call("plat_pii_result", lambda: lake.query_pii(config))
     g4.link_button("Policy tags", lake.policy_tags_url(config))
     found = _platform_result("plat_catalog_result")
     if found is not None:

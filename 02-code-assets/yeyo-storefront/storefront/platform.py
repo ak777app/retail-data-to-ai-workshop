@@ -22,7 +22,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 from urllib.parse import quote
 
 from .config import Config
-from .ops import CONSOLE, _authorized_session, _bq_table_url, _search_url
+from .ops import CONSOLE, _authorized_session, _bq_table_url, _search_url, run_query
 
 GOVERNED_ASPECT = "yeyo-governed-asset"
 LINEAGE_API = "https://datalineage.googleapis.com/v1"
@@ -207,6 +207,21 @@ def search_governed(config: Config, session=None) -> List[str]:
 def pii_sql(config: Config) -> str:
     return (f"SELECT customer_id, first_name, email, phone_number FROM `{config.fq_table('customer_master')}` "
             "ORDER BY customer_id LIMIT 5")
+
+
+PII_COLUMNS = ("email", "phone_number")
+
+
+def query_pii(config: Config, client=None) -> List[Dict]:
+    """Runs pii_sql only once every PII column carries a policy tag, so the tab never shows raw contact details."""
+    from google.cloud import bigquery
+
+    client = client or bigquery.Client(project=config.project_id or None, location=config.location)
+    schema = client.get_table(config.fq_table("customer_master")).schema
+    untagged = [f.name for f in schema if f.name in PII_COLUMNS and not (f.policy_tags and f.policy_tags.names)]
+    if untagged:
+        raise RuntimeError(f"{', '.join(untagged)} not protected yet: run python -m storefront.governance first")
+    return run_query(config, pii_sql(config), {}, client=client)
 
 
 def lineage_console_url(config: Config) -> str:

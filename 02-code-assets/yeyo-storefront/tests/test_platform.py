@@ -150,3 +150,17 @@ def test_grant_keeps_existing_members():
     governance.grant(SimpleNamespace(post=post), "https://x/res", "r1", ["user:new"])
     assert {"role": "r1", "members": ["user:new", "user:old"]} in sent["bindings"]
     assert {"role": "r2", "members": ["user:x"]} in sent["bindings"] and sent["etag"] == "e"
+
+
+def test_query_pii_refuses_untagged_columns(config):
+    def field(name, tags):
+        return SimpleNamespace(name=name, policy_tags=SimpleNamespace(names=tags) if tags else None)
+
+    ran = []
+    client = SimpleNamespace(query=lambda sql, job_config=None: ran.append(sql) or SimpleNamespace(result=lambda: []))
+    client.get_table = lambda t: SimpleNamespace(schema=[field("email", ["t1"]), field("phone_number", None)])
+    with pytest.raises(RuntimeError, match="phone_number"):
+        lake.query_pii(config, client=client)
+    assert not ran
+    client.get_table = lambda t: SimpleNamespace(schema=[field("email", ["t1"]), field("phone_number", ["t2"])])
+    assert lake.query_pii(config, client=client) == [] and ran
