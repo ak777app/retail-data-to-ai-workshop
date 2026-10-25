@@ -100,8 +100,10 @@ def ensure_policy_tags(s, project: str, location: str) -> Dict[str, str]:
 
 def grant(s, resource_url: str, role: str, members: List[str]) -> None:
     policy = _ok(s.post(f"{resource_url}:getIamPolicy", json={}, timeout=30), allow=()).json()
-    bindings = [b for b in policy.get("bindings", []) if b["role"] != role]
-    bindings.append({"role": role, "members": sorted(set(members))})
+    bindings = [b for b in policy.get("bindings", []) if b["role"] != role or b.get("condition")]
+    current = [m for b in policy.get("bindings", []) if b["role"] == role and not b.get("condition")
+               for m in b.get("members", [])]
+    bindings.append({"role": role, "members": sorted(set(current + members))})
     _ok(s.post(f"{resource_url}:setIamPolicy", json={"policy": {**policy, "bindings": bindings}}, timeout=30),
         allow=())
 

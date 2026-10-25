@@ -110,7 +110,7 @@ def test_governed_assets_cover_every_domain(config):
     fitgear = next(a for a in assets if a.cloud == "AWS")
     assert (fitgear.name, fitgear.catalog_location, fitgear.entry_group) == (
         "fitgear_stock", "us-east4", "@bigquery-aws-us-east-1")
-    assert "AWS" not in {a.cloud for a in lake.governed_assets(config)}
+    assert {"fitgear_stock", "partner_stock_aws_replica"}.isdisjoint(a.name for a in lake.governed_assets(config))
     assert lake.governed_search_url(config).endswith("&q=aspect%3Ayeyo-governed-asset")
     assert all(lake.asset_url(config, a).startswith("https://console.cloud.google.com/") for a in assets)
 
@@ -135,3 +135,18 @@ def test_governance_tags_every_asset_with_the_shared_aspect(config):
     assert params["aspectKeys"] == "p1.global.yeyo-governed-asset"
     assert set(body["aspects"]["p1.global.yeyo-governed-asset"]["data"]) == set(governance.FIELDS)
     assert set(governance.PII_COLUMNS) == {"email", "phone_number"}
+
+
+def test_grant_keeps_existing_members():
+    sent = {}
+    policy = {"etag": "e", "bindings": [{"role": "r1", "members": ["user:old"]}, {"role": "r2", "members": ["user:x"]}]}
+
+    def post(url, json, timeout):
+        if url.endswith(":getIamPolicy"):
+            return FakeResp(policy)
+        sent.update(json["policy"])
+        return FakeResp()
+
+    governance.grant(SimpleNamespace(post=post), "https://x/res", "r1", ["user:new"])
+    assert {"role": "r1", "members": ["user:new", "user:old"]} in sent["bindings"]
+    assert {"role": "r2", "members": ["user:x"]} in sent["bindings"] and sent["etag"] == "e"

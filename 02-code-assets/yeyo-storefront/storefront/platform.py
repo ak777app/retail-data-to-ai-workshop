@@ -16,6 +16,7 @@
 
 import json
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, NamedTuple, Optional, Tuple
 from urllib.parse import quote
@@ -44,7 +45,7 @@ def partner_feed_jsonl(rows: List[Dict]) -> str:
 
 def upload_partner_feed(config: Config, rows: List[Dict], session=None) -> str:
     """Drops the partner's JSON feed in the lakehouse bucket, where the Spark batch picks it up."""
-    name = f"partner_feed/glowlab/stock-{int(time.time())}.json"
+    name = f"partner_feed/glowlab/stock-{int(time.time())}-{uuid.uuid4().hex[:6]}.json"
     resp = _authorized_session(session).post(
         f"https://storage.googleapis.com/upload/storage/v1/b/{config.lakehouse_bucket}/o",
         params={"uploadType": "media", "name": name}, data=partner_feed_jsonl(rows).encode(),
@@ -181,7 +182,8 @@ def governed_assets(config: Config, aws_catalog_location: str = "us-east4") -> L
         table("customer_master", "Customers", "Restricted (PII)",
               "Policy tags: email and phone masked unless Fine-Grained Reader", "CRM"),
     ]
-    return assets if config.aws_s3_bucket else [a for a in assets if a.cloud != "AWS"]
+    aws_only = {config.aws_s3_table, config.partner_replica_table}
+    return assets if config.aws_s3_bucket else [a for a in assets if a.name not in aws_only]
 
 
 def governed_search_url(config: Config) -> str:
