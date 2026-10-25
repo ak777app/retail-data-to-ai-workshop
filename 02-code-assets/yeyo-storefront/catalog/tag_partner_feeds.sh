@@ -59,6 +59,7 @@ YAML
     if gcloud dataplex entries update "$3" --project="$PROJECT_ID" --location="$1" \
         --entry-group="$2" --update-aspects="$file" >/dev/null 2>"$TMP/err"; then
       echo "tagged ${3##*/}"
+      TAGGED=$((TAGGED + 1))
       return
     fi
     sleep 15
@@ -66,6 +67,7 @@ YAML
   echo "skipped ${3##*/}: $(tail -1 "$TMP/err")" >&2
 }
 
+TAGGED=0
 BQ="bigquery.googleapis.com/projects/$PROJECT_ID/datasets"
 tag "$LOCATION" @biglake \
   "biglake.googleapis.com/projects/$PROJECT_ID/catalogs/yeyo_lake/namespaces/yeyo_partner_lake/tables/partner_stock" \
@@ -78,3 +80,8 @@ tag "$LOCATION" @bigquery "$BQ/capstone_ds/tables/partner_stock_aws_replica" \
   "FitGear Direct" MKT-S003 GCP BigQuery "BigQuery table" "Cross-cloud copy from S3" "One-off"
 tag "$LOCATION" @bigquery "$BQ/capstone_ds/tables/vw_partner_stock" \
   "Glow Lab + FitGear Direct" "MKT-S004, MKT-S003" "GCP + AWS" BigQuery "BigQuery view" "UNION ALL of both feeds" "Live"
+
+if [ "$TAGGED" -eq 0 ]; then
+  echo "No partner stock assets were tagged; check the project ID and that the tables exist." >&2
+  exit 1
+fi
