@@ -289,6 +289,16 @@ def test_viral_never_orders_more_than_partner_units(catalog, config):
         assert job.units_ordered == 41
 
 
+def test_one_pause_when_threshold_and_sell_out_coincide(catalog, config):
+    stores = tuple((s.location_id, 50) for s in catalog.stores())
+    cfg = ViralConfig(partner_units=40, pause_at_units=1, pause_at_sell_out=True, store_stock=stores)
+    job = ViralJob(catalog, PubSubPublisher(config, client=FakePubSubClient()), cfg)
+    job.units_ordered, job._started_at = 40, 0.0
+    job.cancel()
+    job._pause()
+    assert job.pause_done and job.sell_out_pause_done and not job._should_pause()
+
+
 def test_viral_skips_sell_out_pause_without_store_stock(catalog, config):
     cfg = ViralConfig(page_views=400, duration_seconds=0, partner_units=40, seed=7, pause_at_sell_out=True)
     job = ViralJob(catalog, PubSubPublisher(config, client=FakePubSubClient()), cfg).start()

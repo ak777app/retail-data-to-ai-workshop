@@ -285,10 +285,10 @@ class ViralJob:
     def _pause(self) -> None:
         """Hold the spike (presenter talks over the dashboards) until resume() or cancel()."""
         with self._lock:
+            if self._should_pause_at_sell_out():
+                self.sell_out_pause_done = True
             if self._should_pause_at_units():
                 self.pause_done = True
-            else:
-                self.sell_out_pause_done = True
             self._resume.clear()
             self._paused_at = self._clock()
             self.status = STATUS_PAUSED
