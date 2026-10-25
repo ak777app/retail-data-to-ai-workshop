@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 import streamlit as st
 
-from storefront.catalog import Catalog, load_catalog
+from storefront.catalog import Catalog, load_catalog, product_image
 from storefront.config import CHANNEL_IN_STORE, CHANNEL_MARKETPLACE, CHANNEL_ONLINE, Config, load_config
 from storefront.events import IN_STORE_PAYMENT_TYPES, PAYMENT_TYPES, CartLine, build_order_event
 from storefront.marketing import (
@@ -243,6 +243,8 @@ with shop_tab:
         cols = st.columns(3)
         for i, p in enumerate(products):
             with cols[i % 3].container(border=True):
+                if image := product_image(p):
+                    st.image(image, width="stretch")
                 st.markdown(f"**{p.description}**")
                 st.caption(f"{p.brand} - {p.category.replace('_', ' ')} / {p.sub_category.replace('_', ' ')}")
                 st.caption(f"`{p.omni_item_id}`")

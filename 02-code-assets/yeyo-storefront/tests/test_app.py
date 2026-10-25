@@ -121,3 +121,14 @@ def test_viral_story_pauses_resumes_and_switches_shop_to_click_and_collect(monke
     at.button(key="collect_btn_BEA-3001-OM").click().run()
     order = at.session_state["orders"][0]
     assert order["fulfillment_type"] == "CLICK_AND_COLLECT" and order["location_id"].endswith("-ST")
+
+
+def test_every_product_has_a_bundled_image():
+    import csv
+
+    from storefront.catalog import product_from_row, product_image
+    from storefront.config import SAMPLE_DATA_DIR
+
+    with open(SAMPLE_DATA_DIR / "product_master.csv", newline="") as f:
+        products = [product_from_row(row) for row in csv.DictReader(f)]
+    assert products and not [p.item_number for p in products if not product_image(p)]
