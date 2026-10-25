@@ -264,7 +264,7 @@ gcloud run services update yeyo-storefront --region us-central1 \
   --update-env-vars AWS_S3_BUCKET=yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID
 ```
 
-The copy now holds FitGear's four listings: 1,500 units each, and 40 for LST-0024, which is LOW_STOCK. The Demo links panel adds a **3d · Engineering: AWS S3 + BigQuery Omni** scene next to the Spark links. To drop the AWS feed, unset `AWS_S3_BUCKET` and re-run `sql/viral_moment.sql`.
+Check that `capstone_ds.partner_stock_aws_replica` has 4 rows. If it's empty, run the `bq cp` again: once, right after the CTAS, the copy reported success but delivered no rows. The copy now holds FitGear's four listings: 1,500 units each, and 40 for LST-0024, which is LOW_STOCK. The Demo links panel adds a **3d · Engineering: AWS S3 + BigQuery Omni** scene next to the Spark links. To drop the AWS feed, unset `AWS_S3_BUCKET` and re-run `sql/viral_moment.sql`.
 
 Optional, open format on the AWS side: Omni exports only CSV, JSON, Avro or Parquet, but it reads Iceberg. Have Athena (in the AWS console) create an Iceberg table of FitGear's stock, `fitgear.partner_stock_iceberg`, at `s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/fitgear_partner_stock/`. Then point BigQuery at the table's latest metadata file:
 
