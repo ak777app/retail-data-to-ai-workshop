@@ -222,3 +222,51 @@ gcloud pubsub subscriptions delete yeyo-clickstream-bq --quiet && gcloud pubsub 
 gcloud biglake iceberg catalogs delete yeyo_lake --quiet
 gcloud storage rm -r gs://$BUCKET
 ```
+
+## 9. Optional: Glow Lab's stock in Amazon S3 (BigQuery Omni)
+
+Glow Lab runs on AWS. Instead of Spark writing the feed in Google Cloud, BigQuery Omni writes and reads it in their S3 bucket, and only Glow Lab's filtered rows cross clouds:
+
+```
+S3 s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/  (Parquet, written by Omni EXPORT DATA)
+  └─ BigLake table yeyo_partner_aws.partner_stock_s3 (aws-us-east-1, query runs in AWS)
+       └─ cross-cloud CTAS ─► yeyo_partner_east4.partner_stock (us-east4)
+            └─ table copy ─► capstone_ds.partner_stock_aws_replica ─► vw_partner_stock ─► vw_oversell_risk
+```
+
+Omni needs a billed project (not the sandbox) and runs on demand in `aws-us-east-1`. A query in `us-central1` can't join the S3 table directly, and a cross-region join took about a minute, too slow for the Ops tab. So **Reset demo** runs the three steps (about 1 minute), and the view reads the local copy.
+
+1. Create the connection and dataset, and note the identity it prints:
+
+```
+bq mk --connection --connection_type=AWS --location=aws-us-east-1 \
+  --iam_role_id=arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/yeyo-bq-omni-partner-stock yeyo_aws_partner
+bq mk --dataset --location=aws-us-east-1 yeyo_partner_aws
+bq mk --dataset --location=us-east4 yeyo_partner_east4
+```
+
+2. In the AWS console (us-east-1):
+   - **S3 bucket:** create `yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID` with Block all public access on and SSE-S3 encryption.
+   - **IAM policy:** create `yeyo-bq-omni-partner-stock-s3`. It allows `s3:ListBucket` on the bucket, `s3:GetObject` on `bucket/*`, and `s3:PutObject` and `s3:DeleteObject` on `bucket/partner_stock/*`.
+   - **IAM role:** create `yeyo-bq-omni-partner-stock` with the Web identity trusted entity type, Google as the provider, and the identity from step 1 as the audience. Attach the policy. Then edit the trust policy so its condition is `"accounts.google.com:sub": "IDENTITY"`.
+   - **Session length:** set the role's maximum session duration to 12 hours.
+3. Write the first snapshot and create the tables. **Reset demo** repeats the export, CTAS and copy:
+
+```
+bq query --use_legacy_sql=false --location=aws-us-east-1 "EXPORT DATA WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(uri='s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet', format='PARQUET', overwrite=true) AS SELECT 'LST-0017' AS listing_id, 'MKT-S004' AS seller_id, 'BEA-3001-OM' AS omni_item_id, 'BEA-3001' AS item_number, 'GLOWLAB-EVANSTON-DC' AS warehouse_id, 600 AS units_on_hand, CURRENT_TIMESTAMP() AS snapshot_ts, 'glowlab-s3' AS source_system"
+bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.partner_stock_s3\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='PARQUET', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet'])"
+sed "s/PROJECT_ID/$PROJECT_ID/g" sql/partner_stock_aws.sql | bq query --use_legacy_sql=false --location=$LOCATION
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$SA --role=roles/bigquery.connectionUser --condition=None
+gcloud run services update yeyo-storefront --region us-central1 \
+  --update-env-vars PARTNER_STOCK_SOURCE=aws,AWS_S3_BUCKET=yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID
+```
+
+Press **Reset demo** once before the first run so that the copy exists. The Demo links panel then shows the S3 tables and bucket in place of the Spark links. To switch back, re-run `sql/viral_moment.sql` and set `PARTNER_STOCK_SOURCE=lakehouse`.
+
+Optional, open format on the AWS side: Omni exports only CSV, JSON, Avro or Parquet, but it reads Iceberg. Have Athena (in the AWS console) create an Iceberg table `glowlab.partner_stock_iceberg` at `s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/partner_stock/`, then point BigQuery at its latest metadata file:
+
+```
+bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.partner_stock_iceberg\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='ICEBERG', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/partner_stock/metadata/LATEST.metadata.json'])"
+```
+
+Replace `LATEST.metadata.json` with the newest `*.metadata.json` file name, and re-run the command after each Athena write.

@@ -23,6 +23,7 @@ from .config import Config
 
 CONSOLE = "https://console.cloud.google.com"
 LOOKER_CREATE = "https://datastudio.google.com/reporting/create"
+PARTNER_SOURCE_AWS = "aws"
 
 
 class DemoLink(NamedTuple):
@@ -76,6 +77,25 @@ def demo_links(config: Config) -> List[DemoLink]:
                  _bq_table_url(p, ds, config.oversell_view)),
         DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: BEA-3001 assets",
                  _search_url(p, "BEA-3001 OR omni_item_id")),
+    ]
+    if config.partner_stock_source == PARTNER_SOURCE_AWS:
+        scene, aws = "3c · Engineering: AWS S3 + BigQuery Omni", config.aws_dataset
+        links += [
+            DemoLink(scene, f"BigLake on S3 (Parquet): {aws}.{config.aws_s3_table}",
+                     _bq_table_url(p, aws, config.aws_s3_table)),
+            DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_iceberg_table}",
+                     _bq_table_url(p, aws, config.aws_iceberg_table)),
+            DemoLink(scene, f"Cross-cloud copy in GCP: {ds}.{config.partner_replica_table}",
+                     _bq_table_url(p, ds, config.partner_replica_table)),
+        ]
+        if config.aws_s3_bucket:
+            links.append(DemoLink(scene, f"Amazon S3: {config.aws_s3_bucket}",
+                                  f"https://s3.console.aws.amazon.com/s3/buckets/{config.aws_s3_bucket}"
+                                  f"?region={config.aws_location.removeprefix('aws-')}"))
+        if config.agent_url:
+            links.append(DemoLink("4 · Agent acts", "Data analyst agent (adk web)", config.agent_url))
+        return links
+    links += [
         DemoLink("3c · Engineering: Spark + Iceberg", f"Knowledge Catalog: {config.partner_stock_table} (Iceberg)",
                  _search_url(p, config.partner_stock_table)),
         DemoLink("3c · Engineering: Spark + Iceberg", "Spark batch jobs (Serverless for Apache Spark)",
@@ -246,3 +266,86 @@ def batch_state(name: str, session=None) -> str:
     resp = _authorized_session(session).get(f"{DATAPROC_API}/{name}", timeout=30)
     resp.raise_for_status()
     return resp.json().get("state", "PENDING")
+
+PARTNER_COLUMNS = (
+    "listing_id, seller_id, omni_item_id, item_number, warehouse_id, units_on_hand, snapshot_ts, source_system")
+
+
+class PartnerListing(NamedTuple):
+    listing_id: str
+    seller_id: str
+    omni_item_id: str
+    item_number: str
+
+
+def aws_restock_enabled(config: Config) -> bool:
+    return config.partner_stock_source == PARTNER_SOURCE_AWS and bool(config.aws_s3_bucket)
+
+
+def s3_export_sql(config: Config) -> str:
+    """BigQuery Omni writes the partner snapshot into S3 as Parquet (runs in the AWS region, no AWS key)."""
+    return f"""
+EXPORT DATA WITH CONNECTION `{config.project_id}.{config.aws_connection}`
+OPTIONS (uri = 's3://{config.aws_s3_bucket}/partner_stock/snapshot/*.parquet', format = 'PARQUET', overwrite = true) AS
+SELECT r.listing_id, r.seller_id, r.omni_item_id, r.item_number, 'GLOWLAB-EVANSTON-DC' AS warehouse_id,
+       r.units_on_hand, CURRENT_TIMESTAMP() AS snapshot_ts, 'glowlab-s3' AS source_system
+FROM UNNEST(@rows) AS r"""
+
+
+def omni_stage_sql(config: Config) -> str:
+    """Cross-cloud CTAS: only the partner's filtered rows leave AWS, landing in the colocated region."""
+    return f"""
+CREATE OR REPLACE TABLE `{config.project_id}.{config.aws_stage_dataset}.{config.partner_stock_table}` AS
+SELECT {PARTNER_COLUMNS}
+FROM `{config.project_id}.{config.aws_dataset}.{config.aws_s3_table}`
+WHERE seller_id = @seller_id"""
+
+
+class AwsRestock:
+    """Reset demo on AWS: S3 Parquet write, cross-cloud CTAS, then a copy next to the clickstream (~1 minute)."""
+
+    def __init__(self, config: Config, listings: List[PartnerListing], units: Dict[str, int], client_factory=None):
+        self.config, self.listings, self.units = config, listings, units
+        self._client_factory = client_factory
+        self.state, self.error = "PENDING", ""
+
+    def _client(self, location: str):
+        if self._client_factory:
+            return self._client_factory(location)
+        from google.cloud import bigquery
+        return bigquery.Client(project=self.config.project_id or None, location=location)
+
+    def run(self) -> "AwsRestock":
+        from google.cloud import bigquery
+
+        cfg = self.config
+        rows = [bigquery.StructQueryParameter(
+            None,
+            bigquery.ScalarQueryParameter("listing_id", "STRING", x.listing_id),
+            bigquery.ScalarQueryParameter("seller_id", "STRING", x.seller_id),
+            bigquery.ScalarQueryParameter("omni_item_id", "STRING", x.omni_item_id),
+            bigquery.ScalarQueryParameter("item_number", "STRING", x.item_number),
+            bigquery.ScalarQueryParameter("units_on_hand", "INT64", int(self.units[x.listing_id])),
+        ) for x in self.listings]
+        try:
+            self.state = "WRITING_S3"
+            omni = self._client(cfg.aws_location)
+            omni.query(s3_export_sql(cfg), job_config=bigquery.QueryJobConfig(
+                query_parameters=[bigquery.ArrayQueryParameter("rows", "STRUCT", rows)])).result()
+            self.state = "CROSS_CLOUD_CTAS"
+            omni.query(omni_stage_sql(cfg), job_config=bigquery.QueryJobConfig(query_parameters=[
+                bigquery.ScalarQueryParameter("seller_id", "STRING", self.listings[0].seller_id)])).result()
+            self.state = "COPYING"
+            self._client(cfg.location).copy_table(
+                f"{cfg.project_id}.{cfg.aws_stage_dataset}.{cfg.partner_stock_table}",
+                cfg.fq_table(cfg.partner_replica_table),
+                job_config=bigquery.CopyJobConfig(write_disposition="WRITE_TRUNCATE")).result()
+            self.state = "SUCCEEDED"
+        except Exception as exc:
+            self.state, self.error = "FAILED", f"{exc.__class__.__name__}: {str(exc)[:200]}"
+        return self
+
+    def start(self) -> "AwsRestock":
+        import threading
+        threading.Thread(target=self.run, daemon=True).start()
+        return self
