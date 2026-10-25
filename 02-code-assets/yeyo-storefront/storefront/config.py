@@ -89,7 +89,6 @@ class Config:
     aws_dataset: str = "yeyo_partner_aws"
     aws_s3_bucket: str = ""
     aws_s3_table: str = "fitgear_stock"
-    aws_iceberg_table: str = ""
     partner_replica_table: str = "partner_stock_aws_replica"
     dq_scan_id: str = "yeyo-oversell-dq"
     agent_url: str = ""
@@ -184,7 +183,6 @@ def load_config(env_file: Optional[os.PathLike] = None) -> Config:
         aws_dataset=_env("AWS_DATASET", "yeyo_partner_aws"),
         aws_s3_bucket=_env("AWS_S3_BUCKET", ""),
         aws_s3_table=_env("AWS_S3_TABLE", "fitgear_stock"),
-        aws_iceberg_table=_env("AWS_ICEBERG_TABLE", ""),
         partner_replica_table=_env("BQ_PARTNER_REPLICA_TABLE", "partner_stock_aws_replica"),
         dq_scan_id=_env("DQ_SCAN_ID", "yeyo-oversell-dq"),
         agent_url=_env("AGENT_URL", ""),

@@ -16,7 +16,9 @@
 
 Runs on Google Cloud Serverless for Apache Spark with the BigLake metastore
 Iceberg catalog, so the table is readable from BigQuery (and any Iceberg engine)
-as `yeyo_partner_lake.partner_stock`. Each run appends one snapshot per listing.
+as `yeyo_partner_lake.partner_stock`. Each run appends one snapshot per listing,
+read from the partner's JSON feed (--feed, newline-delimited JSON) or generated
+from --units when no feed is given.
 
   gcloud dataproc batches submit pyspark spark/partner_stock_sync.py -- --units 600
 """
@@ -41,6 +43,7 @@ def main() -> None:
     parser.add_argument("--table", default="partner_stock")
     parser.add_argument("--units", type=int, default=600, help="units on hand for the viral listing LST-0017")
     parser.add_argument("--other-units", type=int, default=1500)
+    parser.add_argument("--feed", help="gs:// URI of the partner's JSON stock feed")
     args = parser.parse_args()
 
     spark = SparkSession.builder.appName("glowlab-partner-stock-sync").getOrCreate()
@@ -52,12 +55,15 @@ def main() -> None:
           warehouse_id STRING, units_on_hand INT, snapshot_ts TIMESTAMP, source_system STRING
         ) USING iceberg
     """)
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    rows = [(lid, sid, omni, item, "GLOWLAB-EVANSTON-DC", args.units if lid == "LST-0017" else args.other_units,
-             now, "glowlab-spark") for lid, sid, omni, item in LISTINGS]
-    df = spark.createDataFrame(rows, "listing_id string, seller_id string, omni_item_id string, item_number string, "
-                                     "warehouse_id string, units_on_hand int, snapshot_ts timestamp, "
-                                     "source_system string")
+    schema = ("listing_id string, seller_id string, omni_item_id string, item_number string, "
+              "warehouse_id string, units_on_hand int, snapshot_ts timestamp, source_system string")
+    if args.feed:
+        df = spark.read.schema(schema).json(args.feed)
+    else:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        rows = [(lid, sid, omni, item, "GLOWLAB-EVANSTON-DC", args.units if lid == "LST-0017" else args.other_units,
+                 now, "glowlab-spark") for lid, sid, omni, item in LISTINGS]
+        df = spark.createDataFrame(rows, schema)
     df.writeTo(fq).append()
     spark.table(fq).orderBy("snapshot_ts", ascending=False).show(6, truncate=False)
 
