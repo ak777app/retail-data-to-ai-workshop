@@ -66,7 +66,7 @@ def tag_assets(s, config) -> int:
         url = (f"{DATAPLEX_API}/projects/{config.project_id}/locations/{a.catalog_location}/entryGroups/"
                f"{a.entry_group}/entries/{a.entry}")
         body = {"aspects": {key: {"data": {f: getattr(a, f) for f in FIELDS}}}}
-        for attempt in range(6):  # a new aspect type takes a minute before entries accept it
+        for _attempt in range(6):  # a new aspect type takes a minute before entries accept it
             resp = s.patch(url, params={"updateMask": "aspects", "aspectKeys": key}, json=body, timeout=30)
             if resp.ok:
                 print(f"tagged {a.name}")
