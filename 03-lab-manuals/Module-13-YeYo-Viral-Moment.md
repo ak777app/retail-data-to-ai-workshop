@@ -26,6 +26,7 @@ The listing keeps saying `IN_STOCK` while the partner's feed runs out; the view,
 | `spark/partner_stock_sync.py` | Spark job that appends partner stock snapshots to the Iceberg table |
 | `storefront/marketing.py` | Marketing tab queries on `vw_marketing_viral` and the next-best-action rule |
 | `sql/viral_moment.sql` | `clickstream_events`, `vw_oversell_risk`, `vw_marketing_viral`, `oversell_alerts` |
+| `catalog/tag_partner_feeds.sh` | Tags every partner stock table, on Google Cloud and AWS, with one Knowledge Catalog aspect (section 9) |
 
 <hr>
 
@@ -134,7 +135,7 @@ Set `LAKEHOUSE_BUCKET=$BUCKET` (and optionally `AGENT_URL` to your `adk web` or 
 - the partner-stock gauge (from `vw_oversell_risk`, refreshed every 10 seconds) and the red oversell alert, which is also written to `oversell_alerts`;
 - a simulated marketing card: keywords, branches with stock for "collect in store today", and the substitute product once partner stock is gone;
 - live vs. next-day batch report for the same orders;
-- **Demo links**: Pub/Sub topics, BigQuery tables, the data quality scan, a Looker Studio report, lineage, the Knowledge Catalog entry for the Iceberg table, Spark batches and the Cloud Storage folder.
+- **Demo links**: Pub/Sub topics, BigQuery tables, the data quality scan, a Looker Studio report, lineage, the Knowledge Catalog entry for the Iceberg table, a Knowledge Catalog search for partner stock on Google Cloud and AWS (section 9), Spark batches and the Cloud Storage folder.
 - **Latest Pub/Sub events landed in BigQuery**: the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, to show the chart is backed by real data.
 
 **Story flow (no clicks between beats except Go viral):**
@@ -207,7 +208,7 @@ Ask: *"Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on han
 | 0:00 | Hook: one unpaid TikTok | Storefront: FirmX listing from Glow Lab, "In stock" |
 | 0:20 | Goes viral | Go viral: live chart climbing (Pub/Sub ➜ BigQuery in seconds) |
 | 1:10 | Oversell caught | Red alert + gauge; DQ scan link |
-| 1:40 | CDO: can we trust it? | Lineage of `oversell_alerts`: clickstream + orders + Spark Iceberg feed |
+| 1:40 | CDO: can we trust it? | Lineage of `oversell_alerts`: clickstream + orders + Spark Iceberg feed; Knowledge Catalog `aspect:yeyo-partner-feed`: partner stock on Google Cloud and AWS in one list |
 | 2:10 | Head of Engineering: open formats | Spark batch ➜ Iceberg files in your bucket ➜ same table in BigQuery |
 | 2:40 | Agent acts | Ask the data agent: "Where can we still fulfil…?" ➜ London stores; Marketing tab: pause ads, collect in store, private label ads |
 | 3:10 | Strong finish | Stores sell out too: Marketplace units vs. Marketplace + click & collect, about 3× |
@@ -222,6 +223,8 @@ gcloud pubsub subscriptions delete yeyo-clickstream-bq --quiet && gcloud pubsub 
 gcloud biglake iceberg catalogs delete yeyo_lake --quiet
 gcloud storage rm -r gs://$BUCKET
 ```
+
+If you ran section 9, remove the catalog tags with `gcloud dataplex aspect-types delete yeyo-partner-feed --location=global --quiet` after deleting the tables.
 
 ## 9. Optional: a second partner on Amazon S3 (BigQuery Omni)
 
@@ -273,3 +276,18 @@ bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTE
 ```
 
 Replace `LATEST.metadata.json` with the newest `*.metadata.json` file name, and re-run the command after each Athena write. To show the Iceberg link in the Demo links panel, run `gcloud run services update yeyo-storefront --region us-central1 --update-env-vars AWS_ICEBERG_TABLE=partner_stock_iceberg`.
+
+### One catalog for both clouds
+
+Dataplex Universal Catalog (shown in the console as Knowledge Catalog) already indexes the BigQuery Omni tables on S3 next to the Google Cloud tables. To make them one list, tag every partner stock table with the same aspect, `yeyo-partner-feed`. Its fields are partner, seller, cloud, storage, table format, writer and refresh. The script creates the aspect type, then tags the Glow Lab Iceberg table (Spark on Google Cloud), FitGear's S3 Parquet and Iceberg tables (AWS), the copy in `capstone_ds`, and `vw_partner_stock`. It skips any table you haven't created:
+
+```
+bash catalog/tag_partner_feeds.sh YOUR_PROJECT_ID
+```
+
+The first tags can take a minute while the new aspect type propagates (the script retries), and search picks them up a minute or two later. Then search Knowledge Catalog for:
+
+- `aspect:yeyo-partner-feed`: every partner stock asset, whichever cloud or engine holds it. This is the **Knowledge Catalog: partner stock on Google Cloud + AWS** link in scene 3b.
+- `aspect:yeyo-partner-feed.cloud=AWS`: only the tables whose data stays in Amazon S3.
+
+Open any result and the **YeYo partner feed** aspect shows where the data lives and who writes it. Re-run the script after recreating a table; it overwrites the tags.

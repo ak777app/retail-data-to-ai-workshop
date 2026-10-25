@@ -23,6 +23,7 @@ from .config import Config
 
 CONSOLE = "https://console.cloud.google.com"
 LOOKER_CREATE = "https://datastudio.google.com/reporting/create"
+PARTNER_FEED_ASPECT = "yeyo-partner-feed"
 
 
 class DemoLink(NamedTuple):
@@ -76,6 +77,8 @@ def demo_links(config: Config) -> List[DemoLink]:
                  _bq_table_url(p, ds, config.oversell_view)),
         DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: BEA-3001 assets",
                  _search_url(p, "BEA-3001 OR omni_item_id")),
+        DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: partner stock on Google Cloud + AWS",
+                 _search_url(p, f"aspect:{PARTNER_FEED_ASPECT}")),
     ]
     links += [
         DemoLink("3c · Engineering: Spark + Iceberg", f"Knowledge Catalog: {config.partner_stock_table} (Iceberg)",
