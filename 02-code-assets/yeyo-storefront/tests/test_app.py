@@ -51,6 +51,7 @@ def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
     monkeypatch.setenv("VIRAL_DURATION_SECONDS", "0")
     monkeypatch.setenv("VIRAL_PARTNER_UNITS", "20")
     monkeypatch.setenv("VIRAL_STORE_UNITS", "5")
+    monkeypatch.setenv("VIRAL_PAUSE_AT_SELL_OUT", "false")
     st.cache_resource.clear()
     at = AppTest.from_file(APP, default_timeout=30).run()
     assert [t.label for t in at.tabs] == ["Shop", "Ops: viral moment", "Marketing: viral moment",
@@ -112,8 +113,11 @@ def test_viral_story_pauses_resumes_and_switches_shop_to_click_and_collect(monke
     at.session_state["prev_nav"] = "Marketing: viral moment"
     at.session_state["nav"] = "Ops: viral moment"
     at.run()
-    job.join(30)
-    assert not job.is_running and job.projected_units <= 0
+    for _ in range(600):
+        if job.is_paused:
+            break
+        job.join(0.05)
+    assert job.is_paused and job.sell_out_pause_done and job.projected_units <= 0 and job.store_units_sold == 0
     at.run()
     assert not at.exception
     assert at.session_state["open_dialog"] == "sold_out"
@@ -121,6 +125,13 @@ def test_viral_story_pauses_resumes_and_switches_shop_to_click_and_collect(monke
     at.button(key="collect_btn_BEA-3001-OM").click().run()
     order = at.session_state["orders"][0]
     assert order["fulfillment_type"] == "CLICK_AND_COLLECT" and order["location_id"].endswith("-ST")
+
+    at.session_state["open_dialog"] = None
+    at.session_state["prev_nav"] = "Shop"
+    at.session_state["nav"] = "Ops: viral moment"
+    at.run()
+    job.join(30)
+    assert not job.is_running and job.store_units_sold > 0
 
 
 def test_every_product_has_a_bundled_image():

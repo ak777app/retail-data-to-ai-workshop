@@ -425,11 +425,14 @@ with ops_tab:
                                       value=config.viral_pause_units, step=50, disabled=v_running, key="viral_pause")
             v_store = c5.number_input("Units in each London store", min_value=0, max_value=100000,
                                       value=config.viral_store_units, step=50, disabled=v_running, key="viral_store")
+            v_pause_sold_out = st.checkbox(
+                "Pause again when partner stock sells out (show the Shop tab taking click & collect only)",
+                value=config.viral_pause_at_sell_out, disabled=v_running, key="viral_pause_sold_out")
         restocking = bool(ss.restock and ss.restock["state"] not in TERMINAL_BATCH_STATES + ("SKIPPED",))
         b1, b2, b3, _ = st.columns([1, 1, 1, 2])
         if b1.button("Go viral", type="primary", disabled=v_running or restocking):
             vcfg = ViralConfig(hero_listing.listing_id, int(v_views), float(v_secs), int(v_units),
-                               pause_at_units=int(v_pause) or None,
+                               pause_at_units=int(v_pause) or None, pause_at_sell_out=bool(v_pause_sold_out),
                                store_stock=tuple((s.location_id, int(v_store)) for s in catalog.stores())).validate(
                 max_duration_seconds=config.spike_max_duration_seconds)
             _clear_run()
@@ -486,7 +489,10 @@ with ops_tab:
             ordered = bq_risk["units_ordered_since_snapshot"] if bq_risk else snap["units_ordered"]
             phase = _phase(snap)
 
-            if snap["paused"]:
+            if snap["paused"] and snap["sell_out_pause_done"]:
+                st.warning("Spike paused: ads now point to London stores. Show the Shop tab taking click & collect "
+                           "orders only; coming back here resumes it.", icon="⏸️")
+            elif snap["paused"]:
                 st.warning("Spike paused for the talk track. Show the Marketing tab; coming back here resumes it.",
                            icon="⏸️")
             m = st.columns(6)
@@ -764,6 +770,9 @@ def _sold_out_dialog() -> None:
     if sub is not None:
         st.markdown(f"Marketing also launches high-bid ads for our private label **{sub.description}** to capture "
                     "the rest of the search and social traffic around the video.")
+    if snap["paused"]:
+        st.caption("The spike is paused. Open the Shop tab: the product now takes click & collect orders only. "
+                   "Coming back to the Ops tab resumes it.")
     if st.button("OK", type="primary"):
         _close_dialog()
         st.rerun()
