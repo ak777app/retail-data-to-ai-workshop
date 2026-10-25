@@ -680,7 +680,8 @@ with platform_tab:
     o2.markdown(f"FitGear Direct keeps its stock as Apache Iceberg in Amazon S3 "
                 f"(`s3://{config.aws_s3_bucket or 'AWS_S3_BUCKET'}/iceberg/partner_stock/`). The query runs in "
                 f"BigQuery Omni's `{config.aws_location}` region, next to the files; only the result set comes "
-                "back to Google Cloud.")
+                f"back to Google Cloud, as `{config.aws_result_dataset}.{config.aws_result_table}` "
+                f"(us-east4). Lineage records S3 ➜ `{config.aws_s3_table}` ➜ that result on every run.")
     if o2.button("Run on AWS with BigQuery Omni", type="primary", key="plat_omni",
                  disabled=not live or not config.aws_s3_bucket):
         with st.spinner("BigQuery Omni is querying S3 in AWS..."):
@@ -694,11 +695,13 @@ with platform_tab:
                   f"{len(omni['rows'])} row(s)", delta_color="off")
         m4.metric("Billed", lake.human_bytes(omni["bytes_billed"]), "10 MB minimum per query", delta_color="off")
         st.dataframe(omni["rows"], hide_index=True, width="stretch")
-        st.caption(f"Job `{omni['job_id']}`. The Iceberg files never left S3, so there's no bulk egress and no "
-                   "second copy to store and keep in sync: that's the TCO saving.")
+        st.link_button("Open this job in BigQuery", omni["job_url"])
+        st.caption(f"Job `{omni['job_id']}` wrote `{omni['result_table']}`. The Iceberg files never left S3, so "
+                   "there's no bulk egress and no second copy to store and keep in sync: that's the TCO saving.")
 
     st.markdown("#### 3 · End-to-end lineage")
-    st.caption("Solid arrows: recorded automatically by Dataplex lineage (BigQuery jobs and Spark). "
+    st.caption("Solid arrows: recorded automatically by Dataplex lineage (BigQuery jobs, including Omni on AWS, and "
+               "Spark). "
                "Dashed: streaming subscriptions and feeds outside the lineage graph.")
     l1, l2, _ = st.columns([1, 1, 2])
     if l1.button("Load lineage", key="plat_lineage", disabled=not live):

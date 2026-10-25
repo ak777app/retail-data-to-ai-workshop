@@ -376,7 +376,8 @@ def test_aws_demo_links_add_scene_next_to_spark(config):
     assert "3c · Engineering: Spark + Iceberg" in grouped
     aws = grouped["3d · Engineering: AWS S3 + BigQuery Omni"]
     assert [link.label for link in aws if "BigLake on S3" in link.label] == [
-        "BigLake on S3 (Iceberg): yeyo_partner_aws.fitgear_stock"]
+        "BigLake on S3 (Iceberg): yeyo_partner_aws.fitgear_stock (Query it here; Lineage tab)"]
+    assert "Omni result in GCP: yeyo_partner_east4.fitgear_low_stock" in [link.label for link in aws]
     assert any(link.url.endswith("!2syeyo_partner_aws!3sfitgear_stock") for link in aws)
     assert aws[-1].url == "https://s3.console.aws.amazon.com/s3/buckets/yeyo-glowlab-1?region=us-east-1&prefix=iceberg/partner_stock/"
     assert links[-1].url == "http://a"
