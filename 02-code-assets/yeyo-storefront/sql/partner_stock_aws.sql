@@ -29,14 +29,14 @@
 -- Optional (Module-13 section 9): a second partner, FitGear Direct (MKT-S003), keeps its stock in
 -- Amazon S3. BigQuery Omni writes it there and reads it through yeyo_partner_aws.partner_stock_s3
 -- (aws-us-east-1); a cross-cloud CTAS lands FitGear's rows in yeyo_partner_east4 (us-east4) and a
--- table copy brings them next to the clickstream. Glow Lab's Spark-written Iceberg feed stays as is.
+-- table copy brings them next to the clickstream (one-off load; Reset demo only restocks Glow Lab).
 -- Run after sql/viral_moment.sql, in us-central1. Replace PROJECT_ID before running.
 
 CREATE TABLE IF NOT EXISTS capstone_ds.partner_stock_aws_replica (
   listing_id STRING, seller_id STRING, omni_item_id STRING, item_number STRING,
   warehouse_id STRING, units_on_hand INT64, snapshot_ts TIMESTAMP, source_system STRING
 )
-OPTIONS (description = 'FitGear Direct partner stock copied from Amazon S3 (BigQuery Omni) by Reset demo');
+OPTIONS (description = 'FitGear Direct partner stock copied from Amazon S3 (BigQuery Omni)');
 
 CREATE OR REPLACE VIEW capstone_ds.vw_partner_stock AS
 SELECT listing_id, seller_id, omni_item_id, item_number, warehouse_id, units_on_hand, snapshot_ts, source_system
