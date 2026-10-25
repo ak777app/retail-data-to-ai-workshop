@@ -223,20 +223,22 @@ gcloud biglake iceberg catalogs delete yeyo_lake --quiet
 gcloud storage rm -r gs://$BUCKET
 ```
 
-## 9. Optional: Glow Lab's stock in Amazon S3 (BigQuery Omni)
+## 9. Optional: a second partner on Amazon S3 (BigQuery Omni)
 
-Glow Lab runs on AWS. Instead of Spark writing the feed in Google Cloud, BigQuery Omni writes and reads it in their S3 bucket, and only Glow Lab's filtered rows cross clouds:
+Glow Lab's feed stays on Google Cloud, written by Spark into the Lakehouse Iceberg table. A second partner, FitGear Direct (`MKT-S003`, listings LST-0020/21/22/24), runs on AWS. BigQuery Omni writes and reads FitGear's stock in their S3 bucket, and only FitGear's filtered rows cross clouds. `vw_partner_stock` combines both feeds, so `vw_oversell_risk` covers both partners:
 
 ```
-S3 s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/  (Parquet, written by Omni EXPORT DATA)
-  └─ BigLake table yeyo_partner_aws.partner_stock_s3 (aws-us-east-1, query runs in AWS)
-       └─ cross-cloud CTAS ─► yeyo_partner_east4.partner_stock (us-east4)
-            └─ table copy ─► capstone_ds.partner_stock_aws_replica ─► vw_partner_stock ─► vw_oversell_risk
+GCS  yeyo_lake.yeyo_partner_lake.partner_stock  (Iceberg, written by Spark: Glow Lab) ─────────────┐
+S3   s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/  (Parquet, written by Omni)          │
+  └─ BigLake table yeyo_partner_aws.partner_stock_s3 (aws-us-east-1, query runs in AWS)              │
+       └─ cross-cloud CTAS ─► yeyo_partner_east4.partner_stock (us-east4)                            │
+            └─ table copy ─► capstone_ds.partner_stock_aws_replica ─► vw_partner_stock (UNION ALL) ◄─┘
+                                                                         └─► vw_oversell_risk
 ```
 
-Omni needs a billed project (not the sandbox) and runs on demand in `aws-us-east-1`. A query in `us-central1` can't join the S3 table directly, and a cross-region join took about a minute, too slow for the Ops tab. So **Reset demo** runs the three steps (about 1 minute), and the view reads the local copy.
+Omni needs a billed project (not the sandbox) and runs on demand in `aws-us-east-1`. A query in `us-central1` can't join the S3 table directly, and a cross-region join took about a minute, too slow for the Ops tab. So **Reset demo** runs the Spark batch for Glow Lab and, at the same time, the three Omni steps for FitGear (about 1 minute). The view then reads the local copy.
 
-1. Create the connection and dataset, and note the identity it prints:
+1. Create the connection and datasets, and note the identity the connection prints:
 
 ```
 bq mk --connection --connection_type=AWS --location=aws-us-east-1 \
@@ -253,20 +255,20 @@ bq mk --dataset --location=us-east4 yeyo_partner_east4
 3. Write the first snapshot and create the tables. **Reset demo** repeats the export, CTAS and copy:
 
 ```
-bq query --use_legacy_sql=false --location=aws-us-east-1 "EXPORT DATA WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(uri='s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet', format='PARQUET', overwrite=true) AS SELECT 'LST-0017' AS listing_id, 'MKT-S004' AS seller_id, 'BEA-3001-OM' AS omni_item_id, 'BEA-3001' AS item_number, 'GLOWLAB-EVANSTON-DC' AS warehouse_id, 600 AS units_on_hand, CURRENT_TIMESTAMP() AS snapshot_ts, 'glowlab-s3' AS source_system"
+bq query --use_legacy_sql=false --location=aws-us-east-1 "EXPORT DATA WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(uri='s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet', format='PARQUET', overwrite=true) AS SELECT 'LST-0020' AS listing_id, 'MKT-S003' AS seller_id, 'LIF-4001-OM' AS omni_item_id, 'LIF-4001' AS item_number, 'FITGEAR-INDIANAPOLIS-DC' AS warehouse_id, 1500 AS units_on_hand, CURRENT_TIMESTAMP() AS snapshot_ts, 'amazon-s3' AS source_system"
 bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.partner_stock_s3\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='PARQUET', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet'])"
 sed "s/PROJECT_ID/$PROJECT_ID/g" sql/partner_stock_aws.sql | bq query --use_legacy_sql=false --location=$LOCATION
 gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$SA --role=roles/bigquery.connectionUser --condition=None
 gcloud run services update yeyo-storefront --region us-central1 \
-  --update-env-vars PARTNER_STOCK_SOURCE=aws,AWS_S3_BUCKET=yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID
+  --update-env-vars AWS_S3_BUCKET=yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID
 ```
 
-Press **Reset demo** once before the first run so that the copy exists. The Demo links panel then shows the S3 tables and bucket in place of the Spark links. To switch back, re-run `sql/viral_moment.sql` and set `PARTNER_STOCK_SOURCE=lakehouse`.
+Press **Reset demo** once before the first run so that the copy holds all four FitGear listings: 1,500 units each, and 40 for LOW_STOCK LST-0024. The Demo links panel adds a **3d · Engineering: AWS S3 + BigQuery Omni** scene next to the Spark links. To drop the AWS feed, unset `AWS_S3_BUCKET` and re-run `sql/viral_moment.sql`.
 
-Optional, open format on the AWS side: Omni exports only CSV, JSON, Avro or Parquet, but it reads Iceberg. Have Athena (in the AWS console) create an Iceberg table `glowlab.partner_stock_iceberg` at `s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/partner_stock/`, then point BigQuery at its latest metadata file:
+Optional, open format on the AWS side: Omni exports only CSV, JSON, Avro or Parquet, but it reads Iceberg. Have Athena (in the AWS console) create an Iceberg table of FitGear's stock, `fitgear.partner_stock_iceberg`, at `s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/fitgear_partner_stock/`. Then point BigQuery at the table's latest metadata file:
 
 ```
-bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.partner_stock_iceberg\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='ICEBERG', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/partner_stock/metadata/LATEST.metadata.json'])"
+bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.partner_stock_iceberg\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='ICEBERG', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/fitgear_partner_stock/metadata/LATEST.metadata.json'])"
 ```
 
 Replace `LATEST.metadata.json` with the newest `*.metadata.json` file name, and re-run the command after each Athena write.

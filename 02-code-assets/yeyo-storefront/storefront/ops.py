@@ -23,7 +23,6 @@ from .config import Config
 
 CONSOLE = "https://console.cloud.google.com"
 LOOKER_CREATE = "https://datastudio.google.com/reporting/create"
-PARTNER_SOURCE_AWS = "aws"
 
 
 class DemoLink(NamedTuple):
@@ -78,23 +77,6 @@ def demo_links(config: Config) -> List[DemoLink]:
         DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: BEA-3001 assets",
                  _search_url(p, "BEA-3001 OR omni_item_id")),
     ]
-    if config.partner_stock_source == PARTNER_SOURCE_AWS:
-        scene, aws = "3c · Engineering: AWS S3 + BigQuery Omni", config.aws_dataset
-        links += [
-            DemoLink(scene, f"BigLake on S3 (Parquet): {aws}.{config.aws_s3_table}",
-                     _bq_table_url(p, aws, config.aws_s3_table)),
-            DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_iceberg_table}",
-                     _bq_table_url(p, aws, config.aws_iceberg_table)),
-            DemoLink(scene, f"Cross-cloud copy in GCP: {ds}.{config.partner_replica_table}",
-                     _bq_table_url(p, ds, config.partner_replica_table)),
-        ]
-        if config.aws_s3_bucket:
-            links.append(DemoLink(scene, f"Amazon S3: {config.aws_s3_bucket}",
-                                  f"https://s3.console.aws.amazon.com/s3/buckets/{config.aws_s3_bucket}"
-                                  f"?region={config.aws_location.removeprefix('aws-')}"))
-        if config.agent_url:
-            links.append(DemoLink("4 · Agent acts", "Data analyst agent (adk web)", config.agent_url))
-        return links
     links += [
         DemoLink("3c · Engineering: Spark + Iceberg", f"Knowledge Catalog: {config.partner_stock_table} (Iceberg)",
                  _search_url(p, config.partner_stock_table)),
@@ -106,6 +88,19 @@ def demo_links(config: Config) -> List[DemoLink]:
     if config.lakehouse_bucket:
         links.append(DemoLink("3c · Engineering: Spark + Iceberg", "Cloud Storage: Parquet + Iceberg metadata",
                               f"{CONSOLE}/storage/browser/{config.lakehouse_bucket}/iceberg?project={p}"))
+    if config.aws_s3_bucket:
+        scene, aws = "3d · Engineering: AWS S3 + BigQuery Omni", config.aws_dataset
+        links += [
+            DemoLink(scene, f"BigLake on S3 (Parquet): {aws}.{config.aws_s3_table}",
+                     _bq_table_url(p, aws, config.aws_s3_table)),
+            DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_iceberg_table}",
+                     _bq_table_url(p, aws, config.aws_iceberg_table)),
+            DemoLink(scene, f"Cross-cloud copy in GCP: {ds}.{config.partner_replica_table}",
+                     _bq_table_url(p, ds, config.partner_replica_table)),
+            DemoLink(scene, f"Amazon S3: {config.aws_s3_bucket}",
+                     f"https://s3.console.aws.amazon.com/s3/buckets/{config.aws_s3_bucket}"
+                     f"?region={config.aws_location.removeprefix('aws-')}"),
+        ]
     if config.agent_url:
         links.append(DemoLink("4 · Agent acts", "Data analyst agent (adk web)", config.agent_url))
     return links
@@ -279,7 +274,7 @@ class PartnerListing(NamedTuple):
 
 
 def aws_restock_enabled(config: Config) -> bool:
-    return config.partner_stock_source == PARTNER_SOURCE_AWS and bool(config.aws_s3_bucket)
+    return bool(config.aws_s3_bucket)
 
 
 def s3_export_sql(config: Config) -> str:
@@ -287,8 +282,8 @@ def s3_export_sql(config: Config) -> str:
     return f"""
 EXPORT DATA WITH CONNECTION `{config.project_id}.{config.aws_connection}`
 OPTIONS (uri = 's3://{config.aws_s3_bucket}/partner_stock/snapshot/*.parquet', format = 'PARQUET', overwrite = true) AS
-SELECT r.listing_id, r.seller_id, r.omni_item_id, r.item_number, 'GLOWLAB-EVANSTON-DC' AS warehouse_id,
-       r.units_on_hand, CURRENT_TIMESTAMP() AS snapshot_ts, 'glowlab-s3' AS source_system
+SELECT r.listing_id, r.seller_id, r.omni_item_id, r.item_number, @warehouse_id AS warehouse_id,
+       r.units_on_hand, CURRENT_TIMESTAMP() AS snapshot_ts, 'amazon-s3' AS source_system
 FROM UNNEST(@rows) AS r"""
 
 
@@ -302,7 +297,7 @@ WHERE seller_id = @seller_id"""
 
 
 class AwsRestock:
-    """Reset demo on AWS: S3 Parquet write, cross-cloud CTAS, then a copy next to the clickstream (~1 minute)."""
+    """Reset demo for the AWS partner: S3 Parquet write, cross-cloud CTAS, then a copy to capstone_ds (~1 min)."""
 
     def __init__(self, config: Config, listings: List[PartnerListing], units: Dict[str, int], client_factory=None):
         self.config, self.listings, self.units = config, listings, units
@@ -331,10 +326,12 @@ class AwsRestock:
             self.state = "WRITING_S3"
             omni = self._client(cfg.aws_location)
             omni.query(s3_export_sql(cfg), job_config=bigquery.QueryJobConfig(
-                query_parameters=[bigquery.ArrayQueryParameter("rows", "STRUCT", rows)])).result()
+                query_parameters=[bigquery.ArrayQueryParameter("rows", "STRUCT", rows),
+                                  bigquery.ScalarQueryParameter("warehouse_id", "STRING",
+                                                                cfg.aws_partner_warehouse)])).result()
             self.state = "CROSS_CLOUD_CTAS"
             omni.query(omni_stage_sql(cfg), job_config=bigquery.QueryJobConfig(query_parameters=[
-                bigquery.ScalarQueryParameter("seller_id", "STRING", self.listings[0].seller_id)])).result()
+                bigquery.ScalarQueryParameter("seller_id", "STRING", cfg.aws_partner_seller_id)])).result()
             self.state = "COPYING"
             self._client(cfg.aws_stage_location).copy_table(
                 f"{cfg.project_id}.{cfg.aws_stage_dataset}.{cfg.partner_stock_table}",

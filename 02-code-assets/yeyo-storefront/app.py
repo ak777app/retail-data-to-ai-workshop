@@ -376,16 +376,24 @@ def _finish_card(snap: dict) -> None:
                         f"while the stores sit on stock. With it: **{total / partner:.1f}× the units**.")
 
 
-def _aws_restock(units: int) -> AwsRestock:
-    seller_id = hero_listing.seller_id
+def _aws_restock() -> AwsRestock:
+    mine = [x for x in catalog.listings if x.seller_id == config.aws_partner_seller_id]
     listings = [PartnerListing(x.listing_id, x.seller_id, x.omni_item_id, catalog.product(x.omni_item_id).item_number)
-                for x in catalog.listings if x.seller_id == seller_id]
-    stock = {x.listing_id: units if x.listing_id == hero_listing.listing_id else 1500 for x in listings}
+                for x in mine]
+    stock = {x.listing_id: 40 if x.stock_status == "LOW_STOCK" else 1500 for x in mine}
     return AwsRestock(config, listings, stock).start()
 
 
+def _restocking(r) -> bool:
+    if not r:
+        return False
+    aws = r.get("aws")
+    spark_running = r["state"] not in TERMINAL_BATCH_STATES + ("SKIPPED",)
+    return spark_running or bool(aws and aws.state not in TERMINAL_BATCH_STATES)
+
+
 def _reset_demo(units: int, store_units: int) -> None:
-    """Clear the viral run, restock the London stores and the partner (Spark Iceberg snapshot, or S3 via Omni)."""
+    """Clear the viral run, restock the London stores and both partner feeds (Spark Iceberg, S3 via Omni)."""
     _clear_run()
     if config.publish_mode != "local" and hero_listing is not None:
         hero_product = catalog.product(hero_listing.omni_item_id)
@@ -394,16 +402,15 @@ def _reset_demo(units: int, store_units: int) -> None:
                               [s.location_id for s in catalog.stores()], store_units)
         except Exception as exc:
             st.warning(f"Store stock not reset in BigQuery: {exc.__class__.__name__}: {str(exc)[:200]}")
-    if config.publish_mode != "local" and hero_listing is not None and aws_restock_enabled(config):
-        ss.restock = {"job": _aws_restock(units), "state": "PENDING", "units": units}
-        return
     if config.publish_mode == "local" or not config.lakehouse_bucket:
         ss.restock = {"state": "SKIPPED", "units": units}
-        return
-    try:
-        ss.restock = {"name": submit_restock(config, units), "state": "PENDING", "units": units}
-    except Exception as exc:
-        ss.restock = {"state": "FAILED", "units": units, "error": f"{exc.__class__.__name__}: {str(exc)[:200]}"}
+    else:
+        try:
+            ss.restock = {"name": submit_restock(config, units), "state": "PENDING", "units": units}
+        except Exception as exc:
+            ss.restock = {"state": "FAILED", "units": units, "error": f"{exc.__class__.__name__}: {str(exc)[:200]}"}
+    if config.publish_mode != "local" and aws_restock_enabled(config):
+        ss.restock["aws"] = _aws_restock()
 
 
 with ops_tab:
@@ -435,7 +442,7 @@ with ops_tab:
                                       value=config.viral_pause_units, step=50, disabled=v_running, key="viral_pause")
             v_store = c5.number_input("Units in each London store", min_value=0, max_value=100000,
                                       value=config.viral_store_units, step=50, disabled=v_running, key="viral_store")
-        restocking = bool(ss.restock and ss.restock["state"] not in TERMINAL_BATCH_STATES + ("SKIPPED",))
+        restocking = _restocking(ss.restock)
         b1, b2, b3, _ = st.columns([1, 1, 1, 2])
         if b1.button("Go viral", type="primary", disabled=v_running or restocking):
             vcfg = ViralConfig(hero_listing.listing_id, int(v_views), float(v_secs), int(v_units),
@@ -450,26 +457,14 @@ with ops_tab:
             vjob.cancel()
             vjob.resume()
         if b3.button("Reset demo", disabled=v_running or restocking, key="viral_reset",
-                     help="Clears the run and restocks the partner feed (Spark Iceberg, or S3 via BigQuery Omni)."):
+                     help="Clears the run and restocks both partner feeds (Spark Iceberg on GCP, S3 via Omni)."):
             _reset_demo(int(v_units), int(v_store))
             st.rerun()
 
-        @st.fragment(run_every=(5.0 if ss.restock.get("job") else 10.0) if restocking else None)
+        @st.fragment(run_every=(5.0 if ss.restock.get("aws") else 10.0) if restocking else None)
         def restock_status() -> None:
             r = ss.restock
             if not r:
-                return
-            if r.get("job"):
-                r["state"], r["error"] = r["job"].state, r["job"].error
-                if r["state"] == "SUCCEEDED":
-                    st.success(f"Partner restocked on AWS: BigQuery Omni wrote {r['units']:,} units to S3 (Parquet) "
-                               f"and copied Glow Lab's rows to `{config.partner_replica_table}`.")
-                elif r["state"] == "FAILED":
-                    st.error(f"Partner restock on AWS FAILED: {r['error']}")
-                else:
-                    st.info(f"Restocking partner on AWS: {r['state'].replace('_', ' ').lower()} (about 1 minute).")
-                if restocking and r["state"] in TERMINAL_BATCH_STATES:
-                    st.rerun(scope="app")
                 return
             if r.get("name") and r["state"] not in TERMINAL_BATCH_STATES:
                 try:
@@ -485,7 +480,18 @@ with ops_tab:
                 st.error(f"Partner restock {r['state']}: {r.get('error') or batch}")
             else:
                 st.info(f"Restocking partner: Spark batch `{batch}` is {r['state']} (about 3 minutes).")
-            if restocking and r["state"] in TERMINAL_BATCH_STATES:
+            aws = r.get("aws")
+            if aws:
+                partner = getattr(catalog.sellers.get(config.aws_partner_seller_id), "seller_name",
+                                  config.aws_partner_seller_id)
+                if aws.state == "SUCCEEDED":
+                    st.success(f"{partner} restocked on AWS: BigQuery Omni wrote its stock to S3 (Parquet) and "
+                               f"copied the rows to `{config.partner_replica_table}`.")
+                elif aws.state == "FAILED":
+                    st.error(f"{partner} restock on AWS FAILED: {aws.error}")
+                else:
+                    st.info(f"Restocking {partner} on AWS: {aws.state.replace('_', ' ').lower()} (about 1 minute).")
+            if restocking and not _restocking(r):
                 st.rerun(scope="app")
 
         restock_status()

@@ -316,15 +316,16 @@ def test_reset_store_stock_sends_per_store_units(config):
 
 
 def _aws_config(config, **kw):
-    return config.__class__(**{**config.__dict__, "partner_stock_source": "aws", "aws_s3_bucket": "yeyo-glowlab-1",
-                               **kw})
+    return config.__class__(**{**config.__dict__, "aws_s3_bucket": "yeyo-glowlab-1", **kw})
 
 
-def test_aws_demo_links_replace_spark_scene(config):
+def test_aws_demo_links_add_scene_next_to_spark(config):
+    assert "3d · Engineering: AWS S3 + BigQuery Omni" not in group_links(demo_links(config))
     links = demo_links(_aws_config(config, agent_url="http://a"))
     grouped = group_links(links)
-    assert "3c · Engineering: Spark + Iceberg" not in grouped
-    aws = grouped["3c · Engineering: AWS S3 + BigQuery Omni"]
+    assert "3c · Engineering: Spark + Iceberg" in grouped
+    aws = grouped["3d · Engineering: AWS S3 + BigQuery Omni"]
+    assert any(link.url.endswith("!2syeyo_partner_aws!3spartner_stock_iceberg") for link in aws)
     assert any(link.url.endswith("!2syeyo_partner_aws!3spartner_stock_s3") for link in aws)
     assert aws[-1].url == "https://s3.console.aws.amazon.com/s3/buckets/yeyo-glowlab-1?region=us-east-1"
     assert links[-1].url == "http://a"
@@ -356,16 +357,17 @@ def test_aws_restock_sql_and_steps(config):
             calls.append((self.location, "copy", src, dst))
             return SimpleNamespace(result=lambda: None)
 
-    listings = [PartnerListing("LST-0017", "MKT-S004", "BEA-3001-OM", "BEA-3001"),
-                PartnerListing("LST-0018", "MKT-S004", "BEA-3002-OM", "BEA-3002")]
-    job = AwsRestock(cfg, listings, {"LST-0017": 600, "LST-0018": 1500}, client_factory=Client).run()
+    listings = [PartnerListing("LST-0020", "MKT-S003", "LIF-4001-OM", "LIF-4001"),
+                PartnerListing("LST-0024", "MKT-S003", "LIF-4005-OM", "LIF-4005")]
+    job = AwsRestock(cfg, listings, {"LST-0020": 1500, "LST-0024": 40}, client_factory=Client).run()
     assert (job.state, job.error) == ("SUCCEEDED", "")
     assert [(c[0], c[1]) for c in calls] == [("aws-us-east-1", "query"), ("aws-us-east-1", "query"),
                                              ("us-east4", "copy")]
     rows = calls[0][3][0].values
     assert [(r.struct_values["listing_id"], r.struct_values["units_on_hand"]) for r in rows] == [
-        ("LST-0017", 600), ("LST-0018", 1500)]
-    assert calls[1][3][0].value == "MKT-S004"
+        ("LST-0020", 1500), ("LST-0024", 40)]
+    assert calls[0][3][1].value == "FITGEAR-INDIANAPOLIS-DC" and "@warehouse_id" in export
+    assert calls[1][3][0].value == "MKT-S003"
     assert calls[2][2:] == ("test-project.yeyo_partner_east4.partner_stock",
                             "test-project.capstone_ds.partner_stock_aws_replica")
 
