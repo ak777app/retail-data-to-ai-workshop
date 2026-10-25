@@ -48,6 +48,7 @@ from storefront.ops import (
     store_stock_sql,
 )
 from storefront.ops import TERMINAL_BATCH_STATES, batch_state, submit_restock
+from storefront import platform as lake
 from storefront import agent as data_agent
 from storefront.viral import ViralConfig, ViralJob, viral_listing
 
@@ -216,9 +217,9 @@ st.title("YeYo")
 st.caption("Everyday pharmacy, wellness and lifestyle - in-store, online and on the YeYo Marketplace.")
 
 OPS_TAB = "Ops: viral moment"
-shop_tab, ops_tab, marketing_tab, agent_tab = st.tabs(["Shop", OPS_TAB, "Marketing: viral moment",
-                                                       "Ask the data agent"], key="nav",
-                                           on_change="rerun")
+PLATFORM_TAB = "Data platform"
+shop_tab, ops_tab, platform_tab, marketing_tab, agent_tab = st.tabs(
+    ["Shop", OPS_TAB, PLATFORM_TAB, "Marketing: viral moment", "Ask the data agent"], key="nav", on_change="rerun")
 # Coming back to the Ops tab while the spike is paused resumes it (no button needed on stage).
 _nav, _prev_nav = ss.get("nav"), ss.get("prev_nav")
 ss.prev_nav = _nav
@@ -390,10 +391,45 @@ def _reset_demo(units: int, store_units: int) -> None:
     if config.publish_mode == "local" or not config.lakehouse_bucket:
         ss.restock = {"state": "SKIPPED", "units": units}
         return
+    _ingest_partner_feed(units)
+
+
+def _ingest_partner_feed(units: int) -> None:
+    """Glow Lab's JSON feed lands in GCS and a Serverless Spark batch appends it to the Iceberg table."""
     try:
-        ss.restock = {"name": submit_restock(config, units), "state": "PENDING", "units": units}
+        feed = lake.upload_partner_feed(config, lake.partner_feed_rows(units))
+        ss.restock = {"name": submit_restock(config, units, feed_uri=feed), "state": "PENDING", "units": units,
+                      "feed": feed}
     except Exception as exc:
         ss.restock = {"state": "FAILED", "units": units, "error": f"{exc.__class__.__name__}: {str(exc)[:200]}"}
+
+
+def _is_restocking() -> bool:
+    return bool(ss.restock and ss.restock["state"] not in TERMINAL_BATCH_STATES + ("SKIPPED",))
+
+
+def _restock_status_body(restocking: bool) -> None:
+    r = ss.restock
+    if not r:
+        return
+    if r.get("name") and r["state"] not in TERMINAL_BATCH_STATES:
+        try:
+            r["state"] = batch_state(r["name"])
+        except Exception as exc:
+            r["error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
+    batch = r.get("name", "").rsplit("/", 1)[-1]
+    feed = f" from `{r['feed']}`" if r.get("feed") else ""
+    if r["state"] == "SUCCEEDED":
+        st.success(f"Partner restocked: Spark batch `{batch}` ingested {r['units']:,} units{feed} "
+                   "into the Iceberg table.")
+    elif r["state"] == "SKIPPED":
+        st.info("Demo reset. Partner restock skipped (local mode or LAKEHOUSE_BUCKET not set).")
+    elif r["state"] in TERMINAL_BATCH_STATES:
+        st.error(f"Partner restock {r['state']}: {r.get('error') or batch}")
+    else:
+        st.info(f"Restocking partner: Spark batch `{batch}` is {r['state']} (about 3 minutes).")
+    if restocking and r["state"] in TERMINAL_BATCH_STATES:
+        st.rerun(scope="app")
 
 
 with ops_tab:
@@ -428,7 +464,7 @@ with ops_tab:
             v_pause_sold_out = st.checkbox(
                 "Pause again when partner stock sells out (show the Shop tab taking click & collect only)",
                 value=config.viral_pause_at_sell_out, disabled=v_running, key="viral_pause_sold_out")
-        restocking = bool(ss.restock and ss.restock["state"] not in TERMINAL_BATCH_STATES + ("SKIPPED",))
+        restocking = _is_restocking()
         b1, b2, b3, _ = st.columns([1, 1, 1, 2])
         if b1.button("Go viral", type="primary", disabled=v_running or restocking):
             vcfg = ViralConfig(hero_listing.listing_id, int(v_views), float(v_secs), int(v_units),
@@ -449,25 +485,7 @@ with ops_tab:
 
         @st.fragment(run_every=10.0 if restocking else None)
         def restock_status() -> None:
-            r = ss.restock
-            if not r:
-                return
-            if r.get("name") and r["state"] not in TERMINAL_BATCH_STATES:
-                try:
-                    r["state"] = batch_state(r["name"])
-                except Exception as exc:
-                    r["error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
-            batch = r.get("name", "").rsplit("/", 1)[-1]
-            if r["state"] == "SUCCEEDED":
-                st.success(f"Partner restocked: Spark batch `{batch}` wrote {r['units']:,} units to the Iceberg feed.")
-            elif r["state"] == "SKIPPED":
-                st.info("Demo reset. Partner restock skipped (local mode or LAKEHOUSE_BUCKET not set).")
-            elif r["state"] in TERMINAL_BATCH_STATES:
-                st.error(f"Partner restock {r['state']}: {r.get('error') or batch}")
-            else:
-                st.info(f"Restocking partner: Spark batch `{batch}` is {r['state']} (about 3 minutes).")
-            if restocking and r["state"] in TERMINAL_BATCH_STATES:
-                st.rerun(scope="app")
+            _restock_status_body(restocking)
 
         restock_status()
         polling = v_running or bool(vjob and vjob.seconds_since_end < 60)
@@ -607,6 +625,118 @@ def _marketing_bigquery(job: ViralJob) -> None:
         except Exception as exc:
             cache[f"{key}_error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
 
+
+# ---------------------------------------------------------------- data platform
+def _platform_call(key: str, fn) -> None:
+    try:
+        ss[key] = {"ok": fn()}
+    except Exception as exc:
+        ss[key] = {"error": f"{exc.__class__.__name__}: {str(exc)[:300]}"}
+
+
+def _platform_result(key: str):
+    r = ss.get(key)
+    if r and "error" in r:
+        st.error(r["error"])
+        return None
+    return r["ok"] if r else None
+
+
+with platform_tab:
+    live = config.publish_mode != "local"
+    st.markdown("### One open lakehouse behind the viral moment")
+    st.caption("The same story as the Ops tab, shown as the platform: open Iceberg tables written by Spark on "
+               "Google Cloud and read in place on AWS, lineage across every hop, and one governed catalog.")
+    if not live:
+        st.info("Local mode: the buttons below need PUBLISH_MODE=pubsub and a Google Cloud project.")
+
+    st.markdown("#### 1 · Managed Spark ingests the partner's JSON feed into Iceberg")
+    p_units = int(ss.get("viral_units", config.viral_partner_units))
+    p_restocking = _is_restocking()
+    c1, c2 = st.columns([3, 2])
+    c1.code(lake.partner_feed_jsonl(lake.partner_feed_rows(p_units)), language="json")
+    lake_table = f"{config.lakehouse_catalog}.{config.partner_lake_dataset}.{config.partner_stock_table}"
+    c2.markdown(f"Glow Lab drops this JSON stock feed in `gs://{config.lakehouse_bucket or 'LAKEHOUSE_BUCKET'}"
+                f"/partner_feed/glowlab/`. A **Serverless for Apache Spark** batch (plain PySpark, no cluster) reads "
+                f"it and appends it to the Apache Iceberg table `{lake_table}` through the BigLake REST catalog. "
+                "BigQuery queries the same files: no copy, no lock-in.")
+    v_busy = bool(ss.viral_job and ss.viral_job.is_running)
+    if c2.button("Ingest with Managed Spark", type="primary", key="plat_spark",
+                 disabled=not live or not config.lakehouse_bucket or v_busy or p_restocking):
+        _ingest_partner_feed(p_units)
+        st.rerun()
+    if c2.button("Read the Iceberg table in BigQuery", key="plat_iceberg", disabled=not live):
+        _platform_call("plat_iceberg_result", lambda: run_query(config, lake.iceberg_rows_sql(config), {}))
+
+    @st.fragment(run_every=10.0 if p_restocking else None)
+    def platform_spark_status() -> None:
+        _restock_status_body(p_restocking)
+
+    platform_spark_status()
+    rows = _platform_result("plat_iceberg_result")
+    if rows:
+        st.dataframe(rows, hide_index=True, width="stretch")
+
+    st.markdown("#### 2 · BigQuery Omni queries FitGear's data where it lives, on AWS")
+    o1, o2 = st.columns([3, 2])
+    o1.code(lake.omni_sql(config), language="sql")
+    o2.markdown(f"FitGear Direct keeps its stock as Apache Iceberg in Amazon S3 "
+                f"(`s3://{config.aws_s3_bucket or 'AWS_S3_BUCKET'}/iceberg/partner_stock/`). The query runs in "
+                f"BigQuery Omni's `{config.aws_location}` region, next to the files; only the result set comes "
+                "back to Google Cloud.")
+    if o2.button("Run on AWS with BigQuery Omni", type="primary", key="plat_omni",
+                 disabled=not live or not config.aws_s3_bucket):
+        with st.spinner("BigQuery Omni is querying S3 in AWS..."):
+            _platform_call("plat_omni_result", lambda: lake.run_omni_query(config))
+    omni = _platform_result("plat_omni_result")
+    if omni:
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Ran in", omni["location"], f"{omni['seconds']} s", delta_color="off")
+        m2.metric("Scanned in AWS", lake.human_bytes(omni["bytes_processed"]))
+        m3.metric("Returned to Google Cloud", lake.human_bytes(omni["result_bytes"]),
+                  f"{len(omni['rows'])} row(s)", delta_color="off")
+        m4.metric("Billed", lake.human_bytes(omni["bytes_billed"]), "10 MB minimum per query", delta_color="off")
+        st.dataframe(omni["rows"], hide_index=True, width="stretch")
+        st.caption(f"Job `{omni['job_id']}`. The Iceberg files never left S3, so there's no bulk egress and no "
+                   "second copy to store and keep in sync: that's the TCO saving.")
+
+    st.markdown("#### 3 · End-to-end lineage")
+    st.caption("Solid arrows: recorded automatically by Dataplex lineage (BigQuery jobs and Spark). "
+               "Dashed: streaming subscriptions and feeds outside the lineage graph.")
+    l1, l2, _ = st.columns([1, 1, 2])
+    if l1.button("Load lineage", key="plat_lineage", disabled=not live):
+        _platform_call("plat_lineage_result", lambda: lake.lineage_edges(config))
+    l2.link_button("Open in BigQuery (Lineage tab)", lake.lineage_console_url(config))
+    edges = _platform_result("plat_lineage_result")
+    if edges is not None and (edges or not live):
+        st.graphviz_chart(lake.lineage_dot(edges or [], lake.documented_edges(config)))
+    elif edges == []:
+        st.warning("Dataplex returned no lineage yet: run the viral moment and the oversell check first.")
+
+    st.markdown("#### 4 · One Knowledge Catalog governs it all")
+    assets = lake.governed_assets(config)
+    st.dataframe([{"Asset": a.name, "Domain": a.domain, "Cloud": a.cloud, "Storage": a.storage,
+                   "Sensitivity": a.sensitivity, "Access control": a.access_control, "Owner": a.owner,
+                   "Open": lake.asset_url(config, a)} for a in assets],
+                 hide_index=True, width="stretch",
+                 column_config={"Open": st.column_config.LinkColumn("Open", display_text="BigQuery")})
+    g1, g2, g3, g4 = st.columns(4)
+    g1.link_button(f"Knowledge Catalog: aspect:{lake.GOVERNED_ASPECT}", lake.governed_search_url(config))
+    if g2.button("Check the catalog", key="plat_catalog", disabled=not live):
+        _platform_call("plat_catalog_result", lambda: lake.search_governed(config))
+    if g3.button("Query customer PII as the storefront", key="plat_pii", disabled=not live):
+        _platform_call("plat_pii_result", lambda: lake.query_pii(config))
+    g4.link_button("Policy tags", lake.policy_tags_url(config))
+    found = _platform_result("plat_catalog_result")
+    if found is not None:
+        st.success(f"One catalog search returns {len(found)} of {len(assets)} governed assets across Google Cloud "
+                   f"and AWS: {', '.join(found)}")
+    pii = _platform_result("plat_pii_result")
+    if pii:
+        st.dataframe(pii, hide_index=True, width="stretch")
+        st.caption("`email` and `phone_number` carry policy tags. The storefront's service account is a Masked "
+                   "Reader, so it gets masked values; the presenter (Fine-Grained Reader) sees the real ones in "
+                   "BigQuery Studio. Same table, same SQL, access decided by the catalog.")
 
 with marketing_tab:
     mjob: ViralJob = ss.viral_job
