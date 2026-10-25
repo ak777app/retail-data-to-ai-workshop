@@ -27,7 +27,7 @@
 -- limitations under the License.
 
 -- Optional (Module-13 section 9): a second partner, FitGear Direct (MKT-S003), keeps its stock in
--- Amazon S3. BigQuery Omni writes it there and reads it through yeyo_partner_aws.partner_stock_s3
+-- Amazon S3. BigQuery Omni writes it there and reads it through yeyo_partner_aws.fitgear_stock
 -- (aws-us-east-1); a cross-cloud CTAS lands FitGear's rows in yeyo_partner_east4 (us-east4) and a
 -- table copy brings them next to the clickstream (one-off load; Reset demo only restocks Glow Lab).
 -- Run after sql/viral_moment.sql, in us-central1. Replace PROJECT_ID before running.

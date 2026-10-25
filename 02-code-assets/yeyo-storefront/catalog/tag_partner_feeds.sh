@@ -72,9 +72,9 @@ BQ="bigquery.googleapis.com/projects/$PROJECT_ID/datasets"
 tag "$LOCATION" @biglake \
   "biglake.googleapis.com/projects/$PROJECT_ID/catalogs/yeyo_lake/namespaces/yeyo_partner_lake/tables/partner_stock" \
   "Glow Lab" MKT-S004 GCP "Cloud Storage" Iceberg "Serverless Spark" "Every Reset demo"
-tag "$AWS_CATALOG_LOCATION" "@bigquery-$AWS_LOCATION" "$BQ/$AWS_DATASET/tables/partner_stock_s3" \
+tag "$AWS_CATALOG_LOCATION" "@bigquery-$AWS_LOCATION" "$BQ/$AWS_DATASET/tables/fitgear_stock" \
   "FitGear Direct" MKT-S003 AWS "Amazon S3" Parquet "BigQuery Omni" "One-off"
-tag "$AWS_CATALOG_LOCATION" "@bigquery-$AWS_LOCATION" "$BQ/$AWS_DATASET/tables/partner_stock_iceberg" \
+tag "$AWS_CATALOG_LOCATION" "@bigquery-$AWS_LOCATION" "$BQ/$AWS_DATASET/tables/fitgear_stock_iceberg" \
   "FitGear Direct" MKT-S003 AWS "Amazon S3" Iceberg "Amazon Athena" "One-off"
 tag "$LOCATION" @bigquery "$BQ/capstone_ds/tables/partner_stock_aws_replica" \
   "FitGear Direct" MKT-S003 GCP BigQuery "BigQuery table" "Cross-cloud copy from S3" "One-off"

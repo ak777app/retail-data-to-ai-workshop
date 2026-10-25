@@ -234,7 +234,7 @@ Glow Lab's feed stays on Google Cloud, written by Spark into the Lakehouse Icebe
 ```
 GCS  yeyo_lake.yeyo_partner_lake.partner_stock  (Iceberg, written by Spark: Glow Lab) ─────────────┐
 S3   s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/  (Parquet, written by Omni)          │
-  └─ BigLake table yeyo_partner_aws.partner_stock_s3 (aws-us-east-1, query runs in AWS)              │
+  └─ BigLake table yeyo_partner_aws.fitgear_stock (aws-us-east-1, query runs in AWS)              │
        └─ cross-cloud CTAS ─► yeyo_partner_east4.partner_stock (us-east4)                            │
             └─ table copy ─► capstone_ds.partner_stock_aws_replica ─► vw_partner_stock (UNION ALL) ◄─┘
                                                                          └─► vw_oversell_risk
@@ -260,8 +260,8 @@ bq mk --dataset --location=us-east4 yeyo_partner_east4
 
 ```
 bq query --use_legacy_sql=false --location=aws-us-east-1 "EXPORT DATA WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(uri='s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet', format='PARQUET', overwrite=true) AS SELECT listing_id, 'MKT-S003' AS seller_id, CONCAT(item_number, '-OM') AS omni_item_id, item_number, 'FITGEAR-INDIANAPOLIS-DC' AS warehouse_id, units_on_hand, CURRENT_TIMESTAMP() AS snapshot_ts, 'amazon-s3' AS source_system FROM UNNEST([STRUCT('LST-0020' AS listing_id, 'LIF-4001' AS item_number, 1500 AS units_on_hand), ('LST-0021', 'LIF-4002', 1500), ('LST-0022', 'LIF-4003', 1500), ('LST-0024', 'LIF-4005', 40)])"
-bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.partner_stock_s3\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='PARQUET', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet'])"
-bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE TABLE \`$PROJECT_ID.yeyo_partner_east4.partner_stock\` AS SELECT * FROM \`$PROJECT_ID.yeyo_partner_aws.partner_stock_s3\` WHERE seller_id = 'MKT-S003'"
+bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.fitgear_stock\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='PARQUET', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet'])"
+bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE TABLE \`$PROJECT_ID.yeyo_partner_east4.partner_stock\` AS SELECT * FROM \`$PROJECT_ID.yeyo_partner_aws.fitgear_stock\` WHERE seller_id = 'MKT-S003'"
 sed "s/PROJECT_ID/$PROJECT_ID/g" sql/partner_stock_aws.sql | bq query --use_legacy_sql=false --location=$LOCATION
 bq cp -f $PROJECT_ID:yeyo_partner_east4.partner_stock $PROJECT_ID:capstone_ds.partner_stock_aws_replica
 gcloud run services update yeyo-storefront --region us-central1 \
@@ -273,10 +273,10 @@ Check that `capstone_ds.partner_stock_aws_replica` has 4 rows. If it's empty, ru
 Optional, open format on the AWS side: Omni exports only CSV, JSON, Avro or Parquet, but it reads Iceberg. Have Athena (in the AWS console) create an Iceberg table of FitGear's stock, `fitgear.partner_stock_iceberg`, at `s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/fitgear_partner_stock/`. Then point BigQuery at the table's latest metadata file:
 
 ```
-bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.partner_stock_iceberg\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='ICEBERG', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/fitgear_partner_stock/metadata/LATEST.metadata.json'])"
+bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.fitgear_stock_iceberg\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='ICEBERG', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/fitgear_partner_stock/metadata/LATEST.metadata.json'])"
 ```
 
-Replace `LATEST.metadata.json` with the newest `*.metadata.json` file name, and re-run the command after each Athena write. To show the Iceberg link in the Demo links panel, run `gcloud run services update yeyo-storefront --region us-central1 --update-env-vars AWS_ICEBERG_TABLE=partner_stock_iceberg`.
+Replace `LATEST.metadata.json` with the newest `*.metadata.json` file name, and re-run the command after each Athena write. To show the Iceberg link in the Demo links panel, run `gcloud run services update yeyo-storefront --region us-central1 --update-env-vars AWS_ICEBERG_TABLE=fitgear_stock_iceberg`.
 
 ### One catalog for both clouds
 
@@ -290,5 +290,6 @@ The first tags can take a minute while the new aspect type propagates (the scrip
 
 - `aspect:yeyo-partner-feed`: every partner stock asset, whichever cloud or engine holds it. This is the **Knowledge Catalog: partner stock on Google Cloud + AWS** link in scene 3b.
 - `aspect:yeyo-partner-feed.cloud=AWS`: only the tables whose data stays in Amazon S3.
+- `fitgear`: FitGear Direct's two AWS tables, `fitgear_stock` (Parquet) and `fitgear_stock_iceberg` (Iceberg). Each entry shows where its files live in Amazon S3 (source URIs such as `s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/partner_stock/snapshot/*.parquet`). The **Amazon S3** link in scene 3d opens that folder in the AWS console.
 
 Open any result and the **YeYo partner feed** aspect shows where the data lives and who writes it. Re-run the script after recreating a table; it overwrites the tags.

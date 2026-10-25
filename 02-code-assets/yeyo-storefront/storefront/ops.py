@@ -24,6 +24,7 @@ from .config import Config
 CONSOLE = "https://console.cloud.google.com"
 LOOKER_CREATE = "https://datastudio.google.com/reporting/create"
 PARTNER_FEED_ASPECT = "yeyo-partner-feed"
+AWS_S3_PREFIX = "partner_stock/snapshot/"
 
 
 class DemoLink(NamedTuple):
@@ -98,9 +99,9 @@ def demo_links(config: Config) -> List[DemoLink]:
                      _bq_table_url(p, aws, config.aws_s3_table)),
             DemoLink(scene, f"Cross-cloud copy in GCP: {ds}.{config.partner_replica_table}",
                      _bq_table_url(p, ds, config.partner_replica_table)),
-            DemoLink(scene, f"Amazon S3: {config.aws_s3_bucket}",
+            DemoLink(scene, f"Amazon S3: FitGear's Parquet files in {config.aws_s3_bucket}/{AWS_S3_PREFIX}",
                      f"https://s3.console.aws.amazon.com/s3/buckets/{config.aws_s3_bucket}"
-                     f"?region={config.aws_location.removeprefix('aws-')}"),
+                     f"?region={config.aws_location.removeprefix('aws-')}&prefix={AWS_S3_PREFIX}"),
         ]
         if config.aws_iceberg_table:
             links.insert(-1, DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_iceberg_table}",

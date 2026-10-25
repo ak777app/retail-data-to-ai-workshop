@@ -372,13 +372,13 @@ def _aws_config(config, **kw):
 def test_aws_demo_links_add_scene_next_to_spark(config):
     assert "3d · Engineering: AWS S3 + BigQuery Omni" not in group_links(demo_links(config))
     assert not any("Iceberg): " in link.label for link in demo_links(_aws_config(config)))
-    links = demo_links(_aws_config(config, agent_url="http://a", aws_iceberg_table="partner_stock_iceberg"))
+    links = demo_links(_aws_config(config, agent_url="http://a", aws_iceberg_table="fitgear_stock_iceberg"))
     grouped = group_links(links)
     assert "3c · Engineering: Spark + Iceberg" in grouped
     aws = grouped["3d · Engineering: AWS S3 + BigQuery Omni"]
-    assert any(link.url.endswith("!2syeyo_partner_aws!3spartner_stock_iceberg") for link in aws)
-    assert any(link.url.endswith("!2syeyo_partner_aws!3spartner_stock_s3") for link in aws)
-    assert aws[-1].url == "https://s3.console.aws.amazon.com/s3/buckets/yeyo-glowlab-1?region=us-east-1"
+    assert any(link.url.endswith("!2syeyo_partner_aws!3sfitgear_stock_iceberg") for link in aws)
+    assert any(link.url.endswith("!2syeyo_partner_aws!3sfitgear_stock") for link in aws)
+    assert aws[-1].url == "https://s3.console.aws.amazon.com/s3/buckets/yeyo-glowlab-1?region=us-east-1&prefix=partner_stock/snapshot/"
     assert links[-1].url == "http://a"
 
 
