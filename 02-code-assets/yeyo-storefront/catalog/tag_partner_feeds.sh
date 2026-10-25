@@ -22,6 +22,8 @@ PROJECT_ID="${1:?usage: tag_partner_feeds.sh YOUR_PROJECT_ID}"
 LOCATION="${LOCATION:-us-central1}"
 AWS_LOCATION="${AWS_LOCATION:-aws-us-east-1}"
 AWS_DATASET="${AWS_DATASET:-yeyo_partner_aws}"
+AWS_RESULT_DATASET="${AWS_RESULT_DATASET:-yeyo_partner_east4}"
+AWS_RESULT_TABLE="${AWS_RESULT_TABLE:-fitgear_low_stock}"
 ASPECT="yeyo-partner-feed"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 TMP="$(mktemp -d)"
@@ -74,7 +76,7 @@ tag "$LOCATION" @biglake \
   "Glow Lab" MKT-S004 GCP "Cloud Storage" Iceberg "Serverless Spark" "Every Reset demo"
 tag "$AWS_CATALOG_LOCATION" "@bigquery-$AWS_LOCATION" "$BQ/$AWS_DATASET/tables/fitgear_stock" \
   "FitGear Direct" MKT-S003 AWS "Amazon S3" Iceberg "Amazon Athena" "One-off"
-tag "$AWS_CATALOG_LOCATION" @bigquery "$BQ/yeyo_partner_east4/tables/fitgear_low_stock" \
+tag "$AWS_CATALOG_LOCATION" @bigquery "$BQ/$AWS_RESULT_DATASET/tables/$AWS_RESULT_TABLE" \
   "FitGear Direct" MKT-S003 GCP BigQuery "BigQuery table" "BigQuery Omni query result" "Each Omni run"
 tag "$LOCATION" @bigquery "$BQ/capstone_ds/tables/vw_partner_stock" \
   "Glow Lab" MKT-S004 GCP BigQuery "BigQuery view" "View over the Iceberg table" "Live"

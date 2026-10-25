@@ -123,7 +123,9 @@ def lineage_edges(config: Config, session=None, max_nodes: int = 30) -> List[Tup
     edges = _walk_upstream(s, config, config.location, f"bigquery:{config.fq_table(config.oversell_alerts_table)}",
                            max_nodes)
     if config.aws_s3_bucket:
-        edges += _walk_upstream(s, config, config.aws_location, f"bigquery:{omni_result_fq(config)}", max_nodes)
+        for start in (omni_result_fq(config), f"{config.project_id}.{config.aws_dataset}.{config.aws_s3_table}"):
+            edges += [e for e in _walk_upstream(s, config, config.aws_location, f"bigquery:{start}", max_nodes)
+                      if e not in edges]
     return edges
 
 

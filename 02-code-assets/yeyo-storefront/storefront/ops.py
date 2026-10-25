@@ -38,6 +38,8 @@ class DemoLink(NamedTuple):
 
 def spark_notebook_url(config: Config) -> str:
     """Opens the partner-stock PySpark notebook (same code as the Reset batch job) in Colab Enterprise."""
+    if config.spark_notebook_url.startswith(f"{CONSOLE}/"):
+        return config.spark_notebook_url
     source = quote(config.spark_notebook_url or SPARK_NOTEBOOK, safe=":")
     return f"{CONSOLE}/vertex-ai/colab/import/{source}?project={config.project_id}"
 

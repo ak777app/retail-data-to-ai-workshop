@@ -226,3 +226,5 @@ def test_spark_notebook_url_imports_the_repo_notebook(config):
     assert url.endswith(f"partner_stock_sync.ipynb?project={config.project_id}")
     assert spark_notebook_url(dataclasses.replace(config, spark_notebook_url="https://x/y.ipynb")).startswith(
         "https://console.cloud.google.com/vertex-ai/colab/import/https:%2F%2Fx%2Fy.ipynb")
+    saved = "https://console.cloud.google.com/agent-platform/colab/notebooks?project=p1&activeNb=nb1"
+    assert spark_notebook_url(dataclasses.replace(config, spark_notebook_url=saved)) == saved

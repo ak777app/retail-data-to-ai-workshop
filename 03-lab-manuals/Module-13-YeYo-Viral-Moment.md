@@ -94,7 +94,7 @@ gcloud storage ls -r gs://$BUCKET/iceberg/ | head
 
 Note: BigQuery can't run DDL/DML on Iceberg REST catalog tables; Spark (or any Iceberg engine) owns writes.
 
-**The same ingestion as a notebook.** `spark/partner_stock_sync.ipynb` walks through it cell by cell: it reads the newest feed in `gs://$BUCKET/partner_feed/glowlab/`, starts a Serverless for Apache Spark session (runtime 3.0, Spark Connect, the `iceberg-spark-runtime-4.0_2.13` jar, the same catalog properties and the same `$SPARK_SA` service account as the batch), appends the feed to the Iceberg table and reads it back from BigQuery. Its ingest cell is the block between the `# --- shared with partner_stock_sync.ipynb ---` markers in `spark/partner_stock_sync.py`, the file Reset submits as the batch job; `tests/test_platform.py` fails if the two differ. Open it from the Data platform tab or the Demo links panel (scene 3c), which import it into Colab Enterprise from the fork's `main` branch. Run the cells top to bottom; the session takes about a minute to start, and the last cell stops it. Set `SPARK_NOTEBOOK_URL` to a raw `.ipynb` URL to open a different copy. After you change `partner_stock_sync.py`, re-upload it with `gcloud storage cp spark/partner_stock_sync.py gs://$BUCKET/spark/`.
+**The same ingestion as a notebook.** `spark/partner_stock_sync.ipynb` walks through it cell by cell: it reads the newest feed in `gs://$BUCKET/partner_feed/glowlab/`, starts a Serverless for Apache Spark session (runtime 3.0, Spark Connect, the `iceberg-spark-runtime-4.0_2.13` jar, the same catalog properties and the same `$SPARK_SA` service account as the batch), appends the feed to the Iceberg table and reads it back from BigQuery. Its ingest cell is the block between the `# --- shared with partner_stock_sync.ipynb ---` markers in `spark/partner_stock_sync.py`, the file Reset submits as the batch job; `tests/test_platform.py` fails if the two differ. Open it from the Data platform tab or the Demo links panel (scene 3c), which import it into Colab Enterprise from the fork's `main` branch. Run the cells top to bottom; the session takes about a minute to start, and the last cell stops it. Set `SPARK_NOTEBOOK_URL` to a raw `.ipynb` URL to import a different copy, or to a Colab Enterprise console URL (`https://console.cloud.google.com/...`) to open a notebook you already saved in your project as is. After you change `partner_stock_sync.py`, re-upload it with `gcloud storage cp spark/partner_stock_sync.py gs://$BUCKET/spark/`.
 
 ## 4. Clickstream topic, tables, view and data quality scan
 
@@ -286,6 +286,12 @@ In S3, open `iceberg/partner_stock/metadata/` and note the newest `*.metadata.js
 bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE EXTERNAL TABLE \`$PROJECT_ID.yeyo_partner_aws.fitgear_stock\` WITH CONNECTION \`$PROJECT_ID.aws-us-east-1.yeyo_aws_partner\` OPTIONS(format='ICEBERG', uris=['s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/partner_stock/metadata/LATEST.metadata.json'])"
 gcloud run services update yeyo-storefront --region us-central1 \
   --update-env-vars AWS_S3_BUCKET=yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID
+```
+
+Then create the Omni result table once, so the catalog step below can tag it (the Data platform tab's Omni button replaces its rows on every run):
+
+```
+bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE TABLE \`$PROJECT_ID.yeyo_partner_east4.fitgear_low_stock\` AS SELECT listing_id, item_number, units_on_hand, snapshot_ts FROM \`$PROJECT_ID.yeyo_partner_aws.fitgear_stock\` WHERE seller_id = 'MKT-S003' AND units_on_hand < 100"
 ```
 
 FitGear's four listings have 1,500 units each, and 40 for LST-0024, which is LOW_STOCK. The Demo links panel adds a **3d · Engineering: AWS S3 + BigQuery Omni** scene next to the Spark links: the S3 table (open it and click **Query** to run Omni from BigQuery Studio, or **Lineage** for the AWS chain), the Omni result table, and the job history. To drop the AWS feed, unset `AWS_S3_BUCKET`.
