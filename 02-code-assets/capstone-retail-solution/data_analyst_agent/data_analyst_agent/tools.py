@@ -15,9 +15,11 @@
 """Defines helper for data Q&A."""
 
 
+from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
 from vertexai.generative_models import GenerativeModel
 from . import utils, constants
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -34,9 +36,16 @@ def sql_generator(prompt: str) -> str:
     try:
  
         model = GenerativeModel(constants.MODEL)
-        response = model.generate_content(
-            prompt, generation_config=constants.GENERATION_CONFIGURATION
-        )
+        for attempt in range(5):
+            try:
+                response = model.generate_content(
+                    prompt, generation_config=constants.GENERATION_CONFIGURATION
+                )
+                break
+            except (ResourceExhausted, ServiceUnavailable):
+                if attempt == 4:
+                    raise
+                time.sleep(2 ** (attempt + 1))
         sql_query = response.text
         logger.info(f"Gemini's SQL Response: {sql_query}")
         

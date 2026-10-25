@@ -38,6 +38,9 @@ root_agent = Agent(
         safety_settings=constants.SAFETY_SETTINGS, 
         top_p=constants.GENERATION_CONFIGURATION_TOP_P,
         top_k=constants.GENERATION_CONFIGURATION_TOP_K,
-        max_output_tokens=constants.GENERATION_CONFIGURATION_MAX_OUTPUT_TOKENS
+        max_output_tokens=constants.GENERATION_CONFIGURATION_MAX_OUTPUT_TOKENS,
+        # Preview Gemini models use shared quota and return 429 under load; back off and retry.
+        http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(
+            attempts=6, initial_delay=2, max_delay=30, http_status_codes=[429, 503])),
     )
 )
