@@ -363,10 +363,10 @@ def _image_src(path: str) -> str:
         return "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()
 
 
-def _campaign_banners(rows, units_left) -> None:
+def _campaign_banners(rows, units_left, own_brand: bool) -> None:
     by_name = {p.description: p for p in catalog.products}
     cards = []
-    for b in campaign_banners(rows, units_left):
+    for b in campaign_banners(rows, units_left, own_brand=own_brand):
         bg, fg = BANNER_TONES[b.tone]
         product = by_name.get(b.product)
         src = _image_src(product_image(product)) if product else ""
@@ -402,7 +402,7 @@ def _bids_table(phase: str, omni_item_id: str, units_left=None) -> None:
     rows = campaign_bids(phase, hero.description, others, sub.description if sub else None,
                          [_store_name(s) for s, _ in _stores_with_stock()])
     st.markdown("**Marketing campaigns right now** (simulated: Google Ads is not connected)")
-    _campaign_banners(rows, units_left)
+    _campaign_banners(rows, units_left, bool(sub) and "YEYO" in (sub.brand or "").upper())
     st.dataframe(rows, hide_index=True, width="stretch")
 
 

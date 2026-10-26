@@ -84,7 +84,8 @@ class Banner(NamedTuple):
     tone: str
 
 
-def campaign_banners(rows: Sequence[Dict], units_left: Optional[int] = None, limit: int = 4) -> List[Banner]:
+def campaign_banners(rows: Sequence[Dict], units_left: Optional[int] = None, limit: int = 4,
+                     own_brand: bool = True) -> List[Banner]:
     """Ad creatives for the live campaigns in `campaign_bids` rows (paused ones are left out).
 
     The three viral campaigns on the same product share one banner."""
@@ -106,9 +107,8 @@ def campaign_banners(rows: Sequence[Dict], units_left: Optional[int] = None, lim
             banners.append(Banner(campaign, product, "CLICK & COLLECT TODAY", "Collect it in store today",
                                   r["Targeting"].replace("within 10 miles of ", "At "), "COLLECT IN STORE", "store"))
         elif campaign == "Private label":
-            own = "yeyo" in product.lower()
-            banners.append(Banner(campaign, product, "NEW: YEYO OWN BRAND" if own else "NEW: TRY THE ALTERNATIVE",
-                                  "Try our own-brand alternative" if own else "A similar product, in stock now", "",
+            banners.append(Banner(campaign, product, "NEW: YEYO OWN BRAND" if own_brand else "NEW: TRY THE ALTERNATIVE",
+                                  "Try our own-brand alternative" if own_brand else "A similar product, in stock now", "",
                                   "SHOP THE ALTERNATIVE", "brand"))
         else:
             banners.append(Banner(campaign, product, "EVERYDAY ESSENTIALS", r["Targeting"].capitalize(), "",
