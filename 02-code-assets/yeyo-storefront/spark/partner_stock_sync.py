@@ -21,7 +21,7 @@ read from the partner's JSON feed (--feed, newline-delimited JSON) or generated
 from --units when no feed is given.
 
 The block between the "shared with" markers is also the ingestion cell of
-partner_stock_sync.ipynb, the notebook the Data platform tab links to; a test
+partner_stock_sync.ipynb, the notebook Demo links opens; a test
 keeps the two identical.
 
   gcloud dataproc batches submit pyspark spark/partner_stock_sync.py -- --units 600

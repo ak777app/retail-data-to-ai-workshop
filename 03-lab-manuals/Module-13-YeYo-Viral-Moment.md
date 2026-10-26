@@ -24,8 +24,8 @@ The listing keeps saying `IN_STOCK` while the partner's feed runs out; the view,
 | `storefront/viral.py` | Viral simulator: rising traffic curve for one listing, clickstream + order events |
 | `storefront/ops.py` | Ops tab queries, alert insert and the Demo links panel |
 | `spark/partner_stock_sync.py` | Spark job that appends partner stock snapshots to the Iceberg table |
-| `spark/partner_stock_sync.ipynb` | PySpark notebook with the same ingestion code, linked from the Data platform tab (section 10) |
-| `storefront/marketing.py` | Marketing tab queries on `vw_marketing_viral` and the next-best-action rule |
+| `spark/partner_stock_sync.ipynb` | PySpark notebook with the same ingestion code, linked from Demo links ➜ Additional links |
+| `storefront/marketing.py` | Simulated campaign bids and banners for the Ops tab |
 | `sql/viral_moment.sql` | `clickstream_events`, `vw_oversell_risk`, `vw_marketing_viral`, `oversell_alerts` |
 | `catalog/tag_partner_feeds.sh` | Tags every partner stock table, on Google Cloud and AWS, with one Knowledge Catalog aspect (section 9) |
 
@@ -132,29 +132,22 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET --member=serviceAccou
 
 ## 5. Run the storefront with the Ops tab
 
-Set `LAKEHOUSE_BUCKET=$BUCKET` (and optionally `AGENT_URL` to your `adk web` or Agent Engine URL) in `.env`, or on Cloud Run with `gcloud run services update yeyo-storefront --update-env-vars LAKEHOUSE_BUCKET=$BUCKET`. Open **Ops: viral moment** and press **Go viral**:
+Set `LAKEHOUSE_BUCKET=$BUCKET` in `.env`, or on Cloud Run with `gcloud run services update yeyo-storefront --update-env-vars LAKEHOUSE_BUCKET=$BUCKET`. Open **Ops: viral moment** and press **Go viral**:
 
 - live page views, add-to-carts, orders and waitlist, charted per 10 seconds;
 - the partner-stock gauge (from `vw_oversell_risk`, refreshed every 10 seconds) and the red oversell alert, which is also written to `oversell_alerts`;
-- simulated marketing campaigns: ad banners for each live campaign ("Hurry: only N left" during the surge, "Click & collect today" with the stores that have stock, the own-brand substitute once partner stock is gone), with the bids table below them; the Marketing tab shows the same banners;
+- simulated marketing campaigns: ad banners for each live campaign ("Hurry: only N left" during the surge, "Click & collect today" with the stores that have stock, the own-brand substitute once partner stock is gone), with the bids table below them;
 - live vs. next-day batch report for the same orders;
-- **Demo links**: lineage, the Knowledge Catalog entry for the Iceberg table, a Knowledge Catalog search for partner stock on Google Cloud and AWS (section 9), the PySpark notebook and the Cloud Storage folder.
+- **Demo links**: four buttons. **Lineage** opens `vw_oversell_risk` (Lineage tab), **Multi-Cloud** opens FitGear's BigLake table on S3 (section 9), **Unified Governance** opens the Knowledge Catalog entry for the Iceberg table, and **Data Protection** queries `customer_master` as the storefront and shows the masked email and phone (section 10). Below them, **Additional links** has the PySpark notebook.
 - **Clickstream landed in BigQuery**, below Demo links: the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, plus events per minute, to show the chart is backed by real data. It stays on screen between runs, refreshes every 10 seconds during the spike, and has a **Refresh** button.
 
 **Story flow (no clicks between beats except Go viral):**
 
 1. Before the spike, the Ops tab shows marketing's current (simulated) bids on other products.
 2. **Go viral**: shoppers, carts and orders climb; the spike pauses automatically at `VIRAL_PAUSE_UNITS` partner units left (default 400, "Demo settings"). A **Viral alert** pop-up shows shoppers in the last minute, carts and time to sell-out; its button deploys high-bid Google Shopping, Search and social campaigns on the hero product.
-3. Open the **Marketing** tab (new bids, funnel, revenue at risk). Switching back to the Ops tab resumes the spike.
+3. Show the new campaign banners and bids on the Ops tab. Switching to the Shop tab and back to Ops resumes the spike.
 4. When partner stock runs out, a **Sold out** pop-up lists the London stores with stock; the hero campaigns pause and high-bid "collect in store today" local inventory ads plus ads for the private label **YeYo Instant Eye Firming Gel** (`BEA-3004`) start. The spike carries on as click & collect orders from store stock (`VIRAL_STORE_UNITS`, default 400 per store, set in `stock_master_location` by **Reset demo**). The spike pauses again right there, before the first store order ("Pause again when partner stock sells out" in "Demo settings", `VIRAL_PAUSE_AT_SELL_OUT`, default on). Open the **Shop** tab to show the product taking click & collect orders only; switching back to the Ops tab resumes the spike.
 5. When the stores sell out too, a **finish** pop-up compares units sold: Marketplace only (no lakehouse: the stores are never used) vs. Marketplace plus click & collect, about 3× with the defaults. On the **Shop** tab (online or marketplace channel) the product's **Add to cart** becomes **Click & collect**, which publishes an online order with `fulfillment_type = CLICK_AND_COLLECT` and the chosen store as `location_id`.
-
-**Marketing: viral moment** tab (same run, read from `vw_marketing_viral`, refreshed every 5 seconds):
-
-- KPIs: sessions, share from TikTok, conversion, revenue and revenue at risk (waitlist units × listing price);
-- a headline action: scale spend while partner stock is OK, or pause ads to the listing, geo-target "collect in store today" and move budget to the own-brand substitute once it is at risk;
-- funnel (page views, carts, purchases, waitlist) and sessions by traffic source;
-- demand by postcode with the YeYo store in the same ZIP3 area that has stock (`location_master`, `stock_master_location`) and its next best action.
 
 The simulator also sends a GA4-style `purchase` clickstream event with each order, so traffic source and postcode are attributed per session.
 
@@ -180,7 +173,7 @@ Then run the scan (`gcloud dataplex datascans run yeyo-oversell-dq --location=$L
 
 ## 6. Agent
 
-The storefront doesn't embed the agent. To show it, run the Module 21 data analyst agent in `adk web` and set `AGENT_URL` (section 5) so **Demo links** opens it under scene 4. Ask: *"Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand from stock_master_location for the latest stock_date."*
+The storefront doesn't embed the agent. To show it, run the Module 21 data analyst agent in `adk web` and ask: *"Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand from stock_master_location for the latest stock_date."*
 
 ## 7. 5-minute talk track
 
@@ -189,9 +182,9 @@ The storefront doesn't embed the agent. To show it, run the Module 21 data analy
 | 0:00 | Hook: one unpaid TikTok | Storefront: FirmX listing from Glow Lab, "In stock" |
 | 0:20 | Goes viral | Go viral: live chart climbing (Pub/Sub ➜ BigQuery in seconds) |
 | 1:10 | Oversell caught | Red alert + gauge; DQ scan link |
-| 1:40 | CDO: can we trust it? | Lineage of `oversell_alerts`: clickstream + orders + Spark Iceberg feed; Knowledge Catalog `aspect:yeyo-partner-feed`: partner stock on Google Cloud and AWS in one list |
+| 1:40 | CDO: can we trust it? | Demo links **Lineage**: clickstream + orders + Spark Iceberg feed; **Unified Governance** and **Data Protection**: one catalog, masked PII |
 | 2:10 | Head of Engineering: open formats | Spark batch ➜ Iceberg files in your bucket ➜ same table in BigQuery |
-| 2:40 | Marketing reacts | Marketing tab: pause ads, collect in store, private label ads |
+| 2:40 | Marketing reacts | Ops tab campaign banners: pause ads, collect in store, private label ads |
 | 3:00 | Ads now point to stores | Spike pauses at sell-out; Shop tab: the product now takes click & collect only; back to Ops resumes |
 | 3:10 | Strong finish | Stores sell out too: Marketplace units vs. Marketplace + click & collect, about 3× |
 | 3:30 | Next-day contrast | Live vs. next-day chart; query in place day one, move only what must be real time |
@@ -220,7 +213,7 @@ S3   s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/partner_stock/  (Iceb
        └─ Omni low-stock query ─► yeyo_partner_east4.fitgear_low_stock (us-east4, result rows only)
 ```
 
-Omni needs a billed project (not the sandbox) and runs on demand in `aws-us-east-1`. The Data platform tab (section 10) queries the S3 table live and saves only the result rows to `yeyo_partner_east4.fitgear_low_stock`, the Google Cloud region paired with `aws-us-east-1`. Dataplex lineage records each run in its `aws-us-east-1` location: S3 ➜ `fitgear_stock` ➜ `fitgear_low_stock`. The Ops tab's `vw_partner_stock` covers Glow Lab only. The demo doesn't sell FitGear's products, so **Reset demo** only restocks Glow Lab (Spark) and the London stores. FitGear's snapshot then ages, so the `partner-snapshot-fresh` data quality rule skips `MKT-S003`.
+Omni needs a billed project (not the sandbox) and runs on demand in `aws-us-east-1`. The low-stock query below reads the S3 table in place and saves only the result rows to `yeyo_partner_east4.fitgear_low_stock`, the Google Cloud region paired with `aws-us-east-1`. Dataplex lineage records each run in its `aws-us-east-1` location: S3 ➜ `fitgear_stock` ➜ `fitgear_low_stock`. The Ops tab's `vw_partner_stock` covers Glow Lab only. The demo doesn't sell FitGear's products, so **Reset demo** only restocks Glow Lab (Spark) and the London stores. FitGear's snapshot then ages, so the `partner-snapshot-fresh` data quality rule skips `MKT-S003`.
 
 1. Create the connection and datasets (`yeyo_partner_east4` holds the Omni results), and note the identity the connection prints:
 
@@ -266,13 +259,13 @@ gcloud run services update yeyo-storefront --region us-central1 \
   --update-env-vars AWS_S3_BUCKET=yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID
 ```
 
-Then create the Omni result table once, so the catalog step below can tag it (the Data platform tab's Omni button replaces its rows on every run):
+Then create the Omni result table once, so the catalog step below can tag it (re-run it live during the demo):
 
 ```
 bq query --use_legacy_sql=false --location=aws-us-east-1 "CREATE OR REPLACE TABLE \`$PROJECT_ID.yeyo_partner_east4.fitgear_low_stock\` AS SELECT listing_id, item_number, units_on_hand, snapshot_ts FROM \`$PROJECT_ID.yeyo_partner_aws.fitgear_stock\` WHERE seller_id = 'MKT-S003' AND units_on_hand < 100"
 ```
 
-FitGear's four listings have 1,500 units each, and 40 for LST-0024, which is LOW_STOCK. The Demo links panel adds a **3d · Engineering: AWS S3 + BigQuery Omni** scene next to the Spark links: the S3 table (open it and click **Query** to run Omni from BigQuery Studio, or **Lineage** for the AWS chain), the Omni result table, and the job history. To drop the AWS feed, unset `AWS_S3_BUCKET`.
+FitGear's four listings have 1,500 units each, and 40 for LST-0024, which is LOW_STOCK. The **Multi-Cloud** button in Demo links opens the S3 table: click **Query** to run Omni from BigQuery Studio, or **Lineage** for the AWS chain. To drop the AWS feed, unset `AWS_S3_BUCKET`.
 
 ### One catalog for both clouds
 
@@ -284,20 +277,15 @@ bash catalog/tag_partner_feeds.sh YOUR_PROJECT_ID
 
 The first tags can take a minute while the new aspect type propagates (the script retries), and search picks them up a minute or two later. Then search Knowledge Catalog for:
 
-- `aspect:yeyo-partner-feed`: every partner stock asset, whichever cloud or engine holds it. This is the **Knowledge Catalog: partner stock on Google Cloud + AWS** link in scene 3b.
+- `aspect:yeyo-partner-feed`: every partner stock asset, whichever cloud or engine holds it.
 - `aspect:yeyo-partner-feed.cloud=AWS`: only the tables whose data stays in Amazon S3.
-- `fitgear`: FitGear Direct's AWS table, `fitgear_stock` (Iceberg). Its entry shows where the files live in Amazon S3 (the source URI `s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/partner_stock/metadata/...metadata.json`). The **Amazon S3** link in scene 3d opens that folder in the AWS console.
+- `fitgear`: FitGear Direct's AWS table, `fitgear_stock` (Iceberg). Its entry shows where the files live in Amazon S3 (the source URI `s3://yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID/iceberg/partner_stock/metadata/...metadata.json`).
 
 Open any result and the **YeYo partner feed** aspect shows where the data lives and who writes it. Re-run the script after recreating a table; it overwrites the tags.
 
-## 10. Data platform tab: the same story as the platform
+## 10. Governed catalog and data protection
 
-The **Data platform** tab sits next to **Ops: viral moment** and shows the four platform points on their own, live:
-
-1. **Managed Spark ➜ Iceberg:** the tab shows Glow Lab's JSON feed. **Open the PySpark notebook** opens the section 3 notebook in Colab Enterprise; run it to ingest the feed into Iceberg on Serverless Spark. **Reset demo** runs the same code as a Serverless Spark batch with `--feed`. **Read the Iceberg table in BigQuery** shows the rows Spark appended.
-2. **BigQuery Omni on AWS:** **Run on AWS with BigQuery Omni** runs a low-stock query on `yeyo_partner_aws.fitgear_stock` in `aws-us-east-1` and saves the result to `yeyo_partner_east4.fitgear_low_stock`. It shows the bytes scanned in AWS, the bytes returned to Google Cloud (one row) and the billed bytes (Omni bills a 10 MB minimum per query). **Open this job in BigQuery** opens that run in the BigQuery console, so you can show it on the platform itself: the `aws-us-east-1` location, the SQL, the execution details and the result. The Iceberg files never leave S3.
-3. **End-to-end lineage:** **Load lineage** walks Dataplex lineage upstream from `oversell_alerts` and draws it: Pub/Sub ➜ orders and clickstream, the JSON feed ➜ Spark's Iceberg table, then `vw_partner_stock` ➜ `vw_oversell_risk` ➜ `oversell_alerts`. It also reads lineage in `aws-us-east-1` for the Omni chain: Athena ➜ S3 Iceberg files ➜ `fitgear_stock` ➜ `fitgear_low_stock`. Dashed arrows are hops the lineage API doesn't record.
-4. **One Knowledge Catalog with access control:** a second aspect, `yeyo-governed-asset` (domain, cloud, storage, sensitivity, access control, owner), tags orders, clickstream, both partner feeds, FitGear's S3 table, alerts and `customer_master`. `customer_master.email` and `phone_number` get policy tags in a `YeYo governance` taxonomy with masking rules (email mask, last four characters). The storefront and data agent service accounts are Masked Readers, and the presenter is a Fine-Grained Reader:
+A second aspect, `yeyo-governed-asset` (domain, cloud, storage, sensitivity, access control, owner), tags orders, clickstream, both partner feeds, FitGear's S3 table, alerts and `customer_master`. `customer_master.email` and `phone_number` get policy tags in a `YeYo governance` taxonomy with masking rules (email mask, last four characters). The storefront and data agent service accounts are Masked Readers, and the presenter is a Fine-Grained Reader:
 
 ```
 gcloud services enable datacatalog.googleapis.com bigquerydatapolicy.googleapis.com
@@ -310,8 +298,7 @@ gcloud storage cp spark/partner_stock_sync.py gs://$BUCKET/spark/
 AWS_S3_BUCKET=yeyo-glowlab-partner-YOUR_AWS_ACCOUNT_ID python -m storefront.governance $PROJECT_ID --presenter YOUR_EMAIL
 ```
 
-Leave out `AWS_S3_BUCKET` if you skipped section 9. **Check the catalog** runs `aspect:yeyo-governed-asset` and should list all 10 assets. **Query customer PII as the storefront** returns `XXXXX@bennett.com` and `XXXXX5632`; the same query in BigQuery Studio, as the presenter, returns the real values.
+Leave out `AWS_S3_BUCKET` if you skipped section 9. A Knowledge Catalog search for `aspect:yeyo-governed-asset` should list all 10 assets. **Data Protection** in Demo links returns `XXXXX@bennett.com` and `XXXXX5632`; the same query in BigQuery Studio, as the presenter, returns the real values.
 
-Talk track for the tab (about 2 minutes, after the Ops story): "Spark you already know, writing open Iceberg. AWS data queried where it lives, only the answer crosses clouds. Every hop traced automatically. One catalog over both clouds, deciding who sees what."
 
 Cleanup: `bq update --schema` without the policy tags or drop `customer_master`'s tags in **BigQuery ➜ Policy tags**, delete the `YeYo governance` taxonomy, and run `gcloud dataplex aspect-types delete yeyo-governed-asset --location=global --quiet`.

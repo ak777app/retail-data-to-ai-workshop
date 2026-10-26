@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Data platform tab: Spark JSON ingest, BigQuery Omni on S3, end-to-end lineage and one governed catalog."""
+"""Platform helpers: Spark JSON ingest, BigQuery Omni on S3, lineage and the governed catalog (PII query)."""
 
 import json
 import time

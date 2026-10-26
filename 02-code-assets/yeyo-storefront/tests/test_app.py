@@ -54,7 +54,7 @@ def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
     monkeypatch.setenv("VIRAL_PAUSE_AT_SELL_OUT", "false")
     st.cache_resource.clear()
     at = AppTest.from_file(APP, default_timeout=30).run()
-    assert [t.label for t in at.tabs] == ["Shop", "Ops: viral moment", "Data platform", "Marketing: viral moment"]
+    assert [t.label for t in at.tabs] == ["Shop", "Ops: viral moment"]
     next(b for b in at.button if b.label == "Go viral").click().run()
     at.session_state["viral_job"].join(30)
     at.run()
@@ -62,8 +62,6 @@ def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
     assert any("OVERSELL" in e.value for e in at.error)
     lines = events_file.read_text().splitlines()
     assert sum('"page_view"' in line for line in lines) == 1000
-    assert any(m.label == "Revenue at risk (waitlist)" for m in at.metric)
-    assert any("Pause ads" in e.value for e in at.error)
     snap = at.session_state["viral_job"].snapshot()
     assert snap["store_units_sold"] == snap["store_units_total"] == 15 and snap["store_units_left"] == 0
     assert any(m.label == "London store units left" for m in at.metric)
@@ -109,7 +107,7 @@ def test_viral_story_pauses_resumes_and_switches_shop_to_click_and_collect(monke
     assert at.session_state["open_dialog"] == "surge"
 
     at.session_state["open_dialog"] = None
-    at.session_state["prev_nav"] = "Marketing: viral moment"
+    at.session_state["prev_nav"] = "Shop"
     at.session_state["nav"] = "Ops: viral moment"
     at.run()
     for _ in range(600):
@@ -144,21 +142,17 @@ def test_every_product_has_a_bundled_image():
     assert products and not [p.item_number for p in products if not product_image(p)]
 
 
-def test_data_platform_tab_renders_locally(monkeypatch, tmp_path):
+def test_demo_links_are_four_platform_buttons(monkeypatch, tmp_path):
     monkeypatch.setenv("PUBLISH_MODE", "local")
     monkeypatch.setenv("CATALOG_SOURCE", "sample")
     monkeypatch.setenv("LOCAL_EVENTS_FILE", str(tmp_path / "events.jsonl"))
+    monkeypatch.setenv("AWS_S3_BUCKET", "yeyo-glowlab-1")
+    st.cache_resource.clear()
     at = AppTest.from_file(str(APP), default_timeout=30).run()
     assert not at.exception
+    assert [b.label for b in at.link_button] == ["Lineage", "Multi-Cloud", "Unified Governance",
+                                               "Pyspark notebook"]
+    assert at.button(key="plat_pii").label == "Data Protection" and at.button(key="plat_pii").disabled
     labels = [b.label for b in at.button]
-    for label in ("Run on AWS with BigQuery Omni", "Load lineage", "Check the catalog",
-                  "Query customer PII as the storefront"):
-        assert at.button(key={"Run on AWS with BigQuery Omni": "plat_omni",
-                              "Load lineage": "plat_lineage", "Check the catalog": "plat_catalog",
-                              "Query customer PII as the storefront": "plat_pii"}[label]).disabled
-        assert label in labels
-    assert any('"listing_id": "LST-0017"' in c.value for c in at.code)
-    assert "Ingest with Managed Spark" not in labels
-    notebook = [b for b in at.link_button if b.label == "Open the PySpark notebook"]
-    assert notebook and "/vertex-ai/colab/import/https:%2F%2Fraw.githubusercontent.com" in notebook[0].url
-    assert "%2Fspark%2Fpartner_stock_sync.ipynb?project=" in notebook[0].url
+    assert "Run on AWS with BigQuery Omni" not in labels and "Load lineage" not in labels
+

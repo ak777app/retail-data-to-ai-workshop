@@ -29,16 +29,13 @@ from storefront.config import CHANNEL_IN_STORE, CHANNEL_MARKETPLACE, CHANNEL_ONL
 from storefront.events import IN_STORE_PAYMENT_TYPES, PAYMENT_TYPES, CartLine, build_order_event
 from storefront.marketing import (
     PHASE_BASELINE,
-    by_postcode_sql,
-    by_referrer_sql,
     campaign_banners,
     campaign_bids,
-    simulator_rows,
     story_phase,
-    totals,
 )
 from storefront.publisher import AutoPublisher, BasePublisher, create_publisher
 from storefront.ops import (
+    DEMO_SCENE,
     demo_links,
     group_links,
     latest_clickstream_sql,
@@ -50,7 +47,7 @@ from storefront.ops import (
     run_query,
     store_stock_sql,
 )
-from storefront.ops import TERMINAL_BATCH_STATES, batch_state, spark_notebook_url, submit_restock
+from storefront.ops import TERMINAL_BATCH_STATES, batch_state, submit_restock
 from storefront import platform as lake
 from storefront.viral import ViralConfig, ViralJob, viral_listing
 
@@ -88,7 +85,6 @@ ss.setdefault("orders", [])
 ss.setdefault("viral_job", None)
 ss.setdefault("restock", None)
 ss.setdefault("ops_bq", {})
-ss.setdefault("mkt_bq", {})
 ss.setdefault("clickstream_view", {})
 ss.setdefault("hero_sold_out", None)
 ss.setdefault("open_dialog", None)
@@ -220,9 +216,7 @@ st.title("YeYo")
 st.caption("Everyday pharmacy, wellness and lifestyle - in-store, online and on the YeYo Marketplace.")
 
 OPS_TAB = "Ops: viral moment"
-PLATFORM_TAB = "Data platform"
-shop_tab, ops_tab, platform_tab, marketing_tab = st.tabs(
-    ["Shop", OPS_TAB, PLATFORM_TAB, "Marketing: viral moment"], key="nav", on_change="rerun")
+shop_tab, ops_tab = st.tabs(["Shop", OPS_TAB], key="nav", on_change="rerun")
 # Coming back to the Ops tab while the spike is paused resumes it (no button needed on stage).
 _nav, _prev_nav = ss.get("nav"), ss.get("prev_nav")
 ss.prev_nav = _nav
@@ -345,7 +339,6 @@ def _ops_bigquery(job: ViralJob) -> None:
 def _clear_run() -> None:
     ss.viral_job = None
     ss.ops_bq = {}
-    ss.mkt_bq = {}
     ss.hero_sold_out = None
     ss.open_dialog = None
 
@@ -517,6 +510,21 @@ def _clickstream_view(listing, polling: bool) -> None:
     clickstream_live()
 
 
+def _platform_call(key: str, fn) -> None:
+    try:
+        ss[key] = {"ok": fn()}
+    except Exception as exc:
+        ss[key] = {"error": f"{exc.__class__.__name__}: {str(exc)[:300]}"}
+
+
+def _platform_result(key: str):
+    r = ss.get(key)
+    if r and "error" in r:
+        st.error(r["error"])
+        return None
+    return r["ok"] if r else None
+
+
 with ops_tab:
     try:
         hero_listing = viral_listing(catalog, config.viral_listing_id)
@@ -596,7 +604,8 @@ with ops_tab:
                 st.warning("Spike paused: ads now point to London stores. Show the Shop tab taking click & collect "
                            "orders only; coming back here resumes it.", icon="⏸️")
             elif snap["paused"]:
-                st.warning("Spike paused for the talk track. Show the Marketing tab; coming back here resumes it.",
+                st.warning("Spike paused for the talk track. Show the campaigns below, then switch to Shop and back "
+                           "here to resume it.",
                            icon="⏸️")
             m = st.columns(6)
             m[0].metric("Shoppers on the page (last 60s)", f"{snap['live_shoppers']:,}")
@@ -678,219 +687,28 @@ with ops_tab:
 
     with st.expander("Demo links"):
         st.caption("Opens the Google Cloud console in a new tab (sign in to the presenting account first).")
-        for scene, links in group_links(demo_links(config)).items():
-            st.markdown(f"**{scene}**")
-            cols = st.columns(min(len(links), 4))
-            for i, link in enumerate(links):
-                cols[i % len(cols)].link_button(link.label, link.url, width="stretch")
-        st.code("Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand.", language=None)
+        grouped = group_links(demo_links(config))
+        links = grouped.pop(DEMO_SCENE)
+        cols = st.columns(len(links) + 1)
+        for col, link in zip(cols, links):
+            col.link_button(link.label, link.url, width="stretch")
+        if cols[-1].button("Data Protection", key="plat_pii", width="stretch",
+                           disabled=config.publish_mode == "local"):
+            _platform_call("plat_pii_result", lambda: lake.query_pii(config))
+        for scene, extra in grouped.items():
+            st.caption(scene)
+            for col, link in zip(st.columns(len(cols)), extra):
+                col.link_button(link.label, link.url, width="stretch")
+        pii = _platform_result("plat_pii_result")
+        if pii:
+            st.dataframe(pii, hide_index=True, width="stretch")
+            st.caption("Customer PII queried as the storefront: `email` and `phone_number` carry policy tags and the "
+                       "storefront's service account is a Masked Reader. The presenter (Fine-Grained Reader) sees the "
+                       "real values in BigQuery Studio.")
 
     if hero_listing is not None:
         _clickstream_view(hero_listing, polling)
 
-
-# ---------------------------------------------------------------- marketing
-def _marketing_bigquery(job: ViralJob) -> None:
-    if config.publish_mode == "local":
-        return
-    cache = ss.mkt_bq
-    now = datetime.now(timezone.utc)
-    if cache.get("at") and (now - cache["at"]).total_seconds() < 10:
-        return
-    cache["at"] = now
-    for key, sql in (("referrer", by_referrer_sql(config)), ("postcode", by_postcode_sql(config))):
-        try:
-            cache[key] = run_query(config, sql, {"viral_id": job.viral_id})
-            cache.pop(f"{key}_error", None)
-        except Exception as exc:
-            cache[f"{key}_error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
-
-
-# ---------------------------------------------------------------- data platform
-def _platform_call(key: str, fn) -> None:
-    try:
-        ss[key] = {"ok": fn()}
-    except Exception as exc:
-        ss[key] = {"error": f"{exc.__class__.__name__}: {str(exc)[:300]}"}
-
-
-def _platform_result(key: str):
-    r = ss.get(key)
-    if r and "error" in r:
-        st.error(r["error"])
-        return None
-    return r["ok"] if r else None
-
-
-with platform_tab:
-    live = config.publish_mode != "local"
-    st.markdown("### One open lakehouse behind the viral moment")
-    st.caption("The same story as the Ops tab, shown as the platform: open Iceberg tables written by Spark on "
-               "Google Cloud and read in place on AWS, lineage across every hop, and one governed catalog.")
-    if not live:
-        st.info("Local mode: the buttons below need PUBLISH_MODE=pubsub and a Google Cloud project.")
-
-    st.markdown("#### 1 · Managed Spark ingests the partner's JSON feed into Iceberg")
-    p_units = int(ss.get("viral_units", config.viral_partner_units))
-    p_restocking = _is_restocking()
-    c1, c2 = st.columns([3, 2])
-    c1.code(lake.partner_feed_jsonl(lake.partner_feed_rows(p_units)), language="json")
-    lake_table = f"{config.lakehouse_catalog}.{config.partner_lake_dataset}.{config.partner_stock_table}"
-    c2.markdown(f"Glow Lab drops this JSON stock feed in `gs://{config.lakehouse_bucket or 'LAKEHOUSE_BUCKET'}"
-                f"/partner_feed/glowlab/`. The PySpark notebook reads it on **Serverless for Apache Spark** (no "
-                f"cluster) and appends it to the Apache Iceberg table `{lake_table}` through the BigLake REST catalog. "
-                "**Reset demo** runs the same code as a Serverless Spark batch job. BigQuery queries the same files: "
-                "no copy, no lock-in.")
-    c2.link_button("Open the PySpark notebook", spark_notebook_url(config), type="primary")
-    if c2.button("Read the Iceberg table in BigQuery", key="plat_iceberg", disabled=not live):
-        _platform_call("plat_iceberg_result", lambda: run_query(config, lake.iceberg_rows_sql(config), {}))
-
-    @st.fragment(run_every=10.0 if p_restocking else None)
-    def platform_spark_status() -> None:
-        _restock_status_body(p_restocking)
-
-    platform_spark_status()
-    rows = _platform_result("plat_iceberg_result")
-    if rows:
-        st.dataframe(rows, hide_index=True, width="stretch")
-
-    st.markdown("#### 2 · BigQuery Omni queries FitGear's data where it lives, on AWS")
-    o1, o2 = st.columns([3, 2])
-    o1.code(lake.omni_sql(config), language="sql")
-    o2.markdown(f"FitGear Direct keeps its stock as Apache Iceberg in Amazon S3 "
-                f"(`s3://{config.aws_s3_bucket or 'AWS_S3_BUCKET'}/iceberg/partner_stock/`). The query runs in "
-                f"BigQuery Omni's `{config.aws_location}` region, next to the files; only the result set comes "
-                f"back to Google Cloud, as `{config.aws_result_dataset}.{config.aws_result_table}` "
-                f"(us-east4). Lineage records S3 ➜ `{config.aws_s3_table}` ➜ that result on every run.")
-    if o2.button("Run on AWS with BigQuery Omni", type="primary", key="plat_omni",
-                 disabled=not live or not config.aws_s3_bucket):
-        with st.spinner("BigQuery Omni is querying S3 in AWS..."):
-            _platform_call("plat_omni_result", lambda: lake.run_omni_query(config))
-    omni = _platform_result("plat_omni_result")
-    if omni:
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Ran in", omni["location"], f"{omni['seconds']} s", delta_color="off")
-        m2.metric("Scanned in AWS", lake.human_bytes(omni["bytes_processed"]))
-        m3.metric("Returned to Google Cloud", lake.human_bytes(omni["result_bytes"]),
-                  f"{len(omni['rows'])} row(s)", delta_color="off")
-        m4.metric("Billed", lake.human_bytes(omni["bytes_billed"]), "10 MB minimum per query", delta_color="off")
-        st.dataframe(omni["rows"], hide_index=True, width="stretch")
-        st.link_button("Open this job in BigQuery", omni["job_url"])
-        st.caption(f"Job `{omni['job_id']}` wrote `{omni['result_table']}`. The Iceberg files never left S3, so "
-                   "there's no bulk egress and no second copy to store and keep in sync: that's the TCO saving.")
-
-    st.markdown("#### 3 · End-to-end lineage")
-    st.caption("Solid arrows: recorded automatically by Dataplex lineage (BigQuery jobs, including Omni on AWS, and "
-               "Spark). "
-               "Dashed: streaming subscriptions and feeds outside the lineage graph.")
-    l1, l2, _ = st.columns([1, 1, 2])
-    if l1.button("Load lineage", key="plat_lineage", disabled=not live):
-        _platform_call("plat_lineage_result", lambda: lake.lineage_edges(config))
-    l2.link_button("Open in BigQuery (Lineage tab)", lake.lineage_console_url(config))
-    edges = _platform_result("plat_lineage_result")
-    if edges is not None and (edges or not live):
-        st.graphviz_chart(lake.lineage_dot(edges or [], lake.documented_edges(config)))
-    elif edges == []:
-        st.warning("Dataplex returned no lineage yet: run the viral moment and the oversell check first.")
-
-    st.markdown("#### 4 · One Knowledge Catalog governs it all")
-    assets = lake.governed_assets(config)
-    st.dataframe([{"Asset": a.name, "Domain": a.domain, "Cloud": a.cloud, "Storage": a.storage,
-                   "Sensitivity": a.sensitivity, "Access control": a.access_control, "Owner": a.owner,
-                   "Open": lake.asset_url(config, a)} for a in assets],
-                 hide_index=True, width="stretch",
-                 column_config={"Open": st.column_config.LinkColumn("Open", display_text="BigQuery")})
-    g1, g2, g3, g4 = st.columns(4)
-    g1.link_button(f"Knowledge Catalog: aspect:{lake.GOVERNED_ASPECT}", lake.governed_search_url(config))
-    if g2.button("Check the catalog", key="plat_catalog", disabled=not live):
-        _platform_call("plat_catalog_result", lambda: lake.search_governed(config))
-    if g3.button("Query customer PII as the storefront", key="plat_pii", disabled=not live):
-        _platform_call("plat_pii_result", lambda: lake.query_pii(config))
-    g4.link_button("Policy tags", lake.policy_tags_url(config))
-    found = _platform_result("plat_catalog_result")
-    if found is not None:
-        st.success(f"One catalog search returns {len(found)} of {len(assets)} governed assets across Google Cloud "
-                   f"and AWS: {', '.join(found)}")
-    pii = _platform_result("plat_pii_result")
-    if pii:
-        st.dataframe(pii, hide_index=True, width="stretch")
-        st.caption("`email` and `phone_number` carry policy tags. The storefront's service account is a Masked "
-                   "Reader, so it gets masked values; the presenter (Fine-Grained Reader) sees the real ones in "
-                   "BigQuery Studio. Same table, same SQL, access decided by the catalog.")
-
-with marketing_tab:
-    mjob: ViralJob = ss.viral_job
-    m_polling = bool(mjob and (mjob.is_running or mjob.seconds_since_end < 60))
-
-    @st.fragment(run_every=5.0 if m_polling else None)
-    def marketing_live() -> None:
-        job: ViralJob = ss.viral_job
-        if job is None:
-            if hero_listing is not None:
-                _bids_table(PHASE_BASELINE, hero_listing.omni_item_id)
-            st.caption("Press **Go viral** on the Ops tab; traffic, revenue and actions for the campaign appear here.")
-            return
-        snap = job.snapshot()
-        _marketing_bigquery(job)
-        mk = ss.mkt_bq
-        price = float(job.listing.listing_price)
-        bq_risk = (ss.ops_bq.get("risk") or [None])[0]
-        level = bq_risk["risk_level"] if bq_risk else risk_level(snap["projected_units"], snap["cart_units"])
-        from_bq = bool(mk.get("referrer")) and bool(mk.get("postcode"))
-        rows = ({key: mk[key] for key in ("referrer", "postcode")} if from_bq
-                else simulator_rows(snap, price, level))
-        t = totals(rows["referrer"])
-
-        st.markdown(f"**{snap['description']}** on the YeYo Marketplace ({snap['seller_name']}), "
-                    f"campaign `{snap['viral_id']}`")
-        k = st.columns(5)
-        k[0].metric("Sessions", f"{t['sessions']:,.0f}")
-        k[1].metric("From TikTok", f"{t['tiktok_share']:.0%}")
-        k[2].metric("Conversion", f"{t['conversion']:.1%}")
-        k[3].metric("Revenue", _money(t["revenue"]))
-        k[4].metric("Revenue at risk (waitlist)", _money(t["revenue_at_risk"]))
-
-        if level == "OK":
-            st.success("Demand is converting and partner stock is OK: scale TikTok and Shopping spend while "
-                       "CPCs are still low.")
-        else:
-            sub = _substitute_product(snap["omni_item_id"])
-            st.error(f"Pause ads that send shoppers to listing {snap['listing_id']}: the partner is "
-                     f"{'OVERSOLD' if level == 'OVERSOLD' else 'about to oversell'}. Geo-target "
-                     f"\"collect in store today\" where a store has stock"
-                     + (f", and switch the rest of the budget to **{sub.description}**." if sub else "."),
-                     icon="📣")
-
-        left, right = st.columns(2)
-        with left:
-            st.markdown("**Funnel**")
-            st.bar_chart(
-                {"stage": ["1 Page views", "2 Added to cart", "3 Purchased", "4 Waitlisted"],
-                 "units": [t["page_views"], t["cart_units"], t["purchase_units"], t["waitlist_units"]]},
-                x="stage", y="units", horizontal=True)
-        with right:
-            st.markdown("**Sessions by traffic source**")
-            if rows["referrer"]:
-                st.bar_chart({"referrer": [r["referrer"] for r in rows["referrer"]],
-                              "sessions": [float(r["sessions"]) for r in rows["referrer"]]},
-                             x="referrer", y="sessions", horizontal=True)
-
-        _bids_table(_phase(snap), snap["omni_item_id"], max(snap["projected_units"], 0))
-
-        st.markdown("**Demand by postcode and next best action**")
-        st.dataframe(
-            [{"Postcode": r["postal_code"], "Sessions": r["sessions"], "Conversion": f"{float(r['conversion'] or 0):.1%}",
-              "Revenue": _money(r["revenue"]), "Revenue at risk": _money(r["revenue_at_risk"]),
-              "Nearest store with stock": r["nearest_store"] or "-",
-              "Next best action": r["next_best_action"]} for r in rows["postcode"]],
-            hide_index=True, width="stretch")
-        st.caption(f"Source: {'BigQuery ' + config.marketing_view if from_bq else 'simulator (BigQuery not available)'} "
-                   f"(clickstream landed through Pub/Sub, oversell view, stock by store).")
-        for key in ("referrer_error", "postcode_error"):
-            if mk.get(key):
-                st.caption(f"BigQuery {key.split('_')[0]}: {mk[key]}")
-
-    marketing_live()
 
 # ---------------------------------------------------------------- story pop-ups
 def _close_dialog() -> None:

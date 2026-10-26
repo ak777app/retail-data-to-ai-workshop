@@ -65,38 +65,17 @@ def looker_create_url(config: Config) -> str:
     return f"{LOOKER_CREATE}?{urlencode(params)}"
 
 
+DEMO_SCENE = "Platform"
+EXTRA_SCENE = "Additional links"
+
+
 def demo_links(config: Config) -> List[DemoLink]:
-    p, ds = config.project_id, config.bq_dataset
-    links = [
-        DemoLink("3b · CDO: lineage & catalog", f"Lineage: {config.oversell_view} (open the Lineage tab)",
-                 _bq_table_url(p, ds, config.oversell_view)),
-        DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: BEA-3001 assets",
-                 _search_url(p, "BEA-3001 OR omni_item_id")),
-        DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: partner stock on Google Cloud + AWS",
-                 _search_url(p, f"aspect:{PARTNER_FEED_ASPECT}")),
-    ]
-    links += [
-        DemoLink("3c · Engineering: Spark + Iceberg", f"Knowledge Catalog: {config.partner_stock_table} (Iceberg)",
-                 _search_url(p, config.partner_stock_table)),
-        DemoLink("3c · Engineering: Spark + Iceberg", "PySpark notebook: JSON feed ➜ Iceberg (Colab Enterprise)",
-                 spark_notebook_url(config)),
-    ]
-    if config.lakehouse_bucket:
-        links.append(DemoLink("3c · Engineering: Spark + Iceberg", "Cloud Storage: Parquet + Iceberg metadata",
-                              f"{CONSOLE}/storage/browser/{config.lakehouse_bucket}/iceberg?project={p}"))
+    p = config.project_id
+    links = [DemoLink(DEMO_SCENE, "Lineage", _bq_table_url(p, config.bq_dataset, config.oversell_view))]
     if config.aws_s3_bucket:
-        scene, aws = "3d · Engineering: AWS S3 + BigQuery Omni", config.aws_dataset
-        links += [
-            DemoLink(scene, f"BigLake on S3 (Iceberg): {aws}.{config.aws_s3_table} (Query it here; Lineage tab)",
-                     _bq_table_url(p, aws, config.aws_s3_table)),
-            DemoLink(scene, f"Omni result in GCP: {config.aws_result_dataset}.{config.aws_result_table}",
-                     _bq_table_url(p, config.aws_result_dataset, config.aws_result_table)),
-            DemoLink(scene, f"Amazon S3: FitGear's Iceberg files in {config.aws_s3_bucket}/{AWS_S3_PREFIX}",
-                     f"https://s3.console.aws.amazon.com/s3/buckets/{config.aws_s3_bucket}"
-                     f"?region={config.aws_location.removeprefix('aws-')}&prefix={AWS_S3_PREFIX}"),
-        ]
-    if config.agent_url:
-        links.append(DemoLink("4 · Agent acts", "Data analyst agent (adk web)", config.agent_url))
+        links.append(DemoLink(DEMO_SCENE, "Multi-Cloud", _bq_table_url(p, config.aws_dataset, config.aws_s3_table)))
+    links.append(DemoLink(DEMO_SCENE, "Unified Governance", _search_url(p, config.partner_stock_table)))
+    links.append(DemoLink(EXTRA_SCENE, "Pyspark notebook", spark_notebook_url(config)))
     return links
 
 

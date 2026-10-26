@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Marketing tab: traffic source, funnel, revenue at risk and next best action for the viral moment."""
+"""Viral-moment marketing: campaign bids and banners for the Ops tab, plus traffic and next-best-action queries."""
 
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
