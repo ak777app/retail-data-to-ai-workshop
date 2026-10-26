@@ -14,7 +14,7 @@
 
 """Marketing tab: traffic source, funnel, revenue at risk and next best action for the viral moment."""
 
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from .config import Config
 
@@ -72,6 +72,51 @@ def campaign_bids(phase: str, hero: str, others: Sequence[Tuple[str, str]], subs
                                  "tiktok eye tightener, instant eye firming, viewers of the viral video", 1.60, 5000,
                                  NEW_BID))
     return viral + rows
+
+
+class Banner(NamedTuple):
+    campaign: str
+    product: str
+    badge: str
+    headline: str
+    detail: str
+    cta: str
+    tone: str
+
+
+def campaign_banners(rows: Sequence[Dict], units_left: Optional[int] = None, limit: int = 4,
+                     own_brand: bool = True) -> List[Banner]:
+    """Ad creatives for the live campaigns in `campaign_bids` rows (paused ones are left out).
+
+    The three viral campaigns on the same product share one banner."""
+    banners: List[Banner] = []
+    viral_channels: List[str] = []
+    for r in rows:
+        if r["Status"].startswith("Paused"):
+            continue
+        campaign, product = r["Campaign"], r["Product"]
+        if campaign.startswith("Viral"):
+            viral_channels.append(r["Channel"])
+            if len(viral_channels) > 1:
+                continue
+            hurry = units_left is not None and units_left > 0
+            banners.append(Banner(campaign, product,
+                                  f"HURRY: ONLY {units_left:,} LEFT" if hurry else "AS SEEN ON TIKTOK",
+                                  "Trending on TikTok", "", "BUY BEFORE IT'S GONE", "hurry"))
+        elif campaign == "Collect in store today":
+            banners.append(Banner(campaign, product, "CLICK & COLLECT TODAY", "Collect it in store today",
+                                  r["Targeting"].replace("within 10 miles of ", "At "), "COLLECT IN STORE", "store"))
+        elif campaign == "Private label":
+            banners.append(Banner(campaign, product, "NEW: YEYO OWN BRAND" if own_brand else "NEW: TRY THE ALTERNATIVE",
+                                  "Try our own-brand alternative" if own_brand else "A similar product, in stock now", "",
+                                  "SHOP THE ALTERNATIVE", "brand"))
+        else:
+            banners.append(Banner(campaign, product, "EVERYDAY ESSENTIALS", r["Targeting"].capitalize(), "",
+                                  "SHOP NOW", "always"))
+    if len(viral_channels) > 1:
+        i = next(i for i, b in enumerate(banners) if b.tone == "hurry")
+        banners[i] = banners[i]._replace(detail=" · ".join(viral_channels))
+    return banners[:limit]
 
 
 def next_best_action(risk_level: Optional[str], nearest_store: Optional[str]) -> str:
