@@ -17,6 +17,8 @@ from pathlib import Path
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
+from storefront import data_agent
+
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
 
 
@@ -54,7 +56,8 @@ def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
     monkeypatch.setenv("VIRAL_PAUSE_AT_SELL_OUT", "false")
     st.cache_resource.clear()
     at = AppTest.from_file(APP, default_timeout=30).run()
-    assert [t.label for t in at.tabs] == ["Shop", "Demo center", "Marketing", "Engineering", "Governance"]
+    assert [t.label for t in at.tabs] == ["Shop", "Demo center", "Marketing", "Engineering", "Governance",
+                                          "Talk to my Agent"]
     next(b for b in at.button if b.label == "Go viral").click().run()
     at.session_state["viral_job"].join(30)
     at.run()
@@ -155,3 +158,34 @@ def test_engineering_and_governance_tabs_have_the_platform_buttons(monkeypatch, 
     labels = [b.label for b in at.button]
     assert "Run on AWS with BigQuery Omni" not in labels and "Load lineage" not in labels
 
+
+
+def test_talk_to_my_agent_is_off_locally(monkeypatch, tmp_path):
+    monkeypatch.setenv("PUBLISH_MODE", "local")
+    monkeypatch.setenv("CATALOG_SOURCE", "sample")
+    monkeypatch.setenv("LOCAL_EVENTS_FILE", str(tmp_path / "events.jsonl"))
+    at = AppTest.from_file(str(APP), default_timeout=30).run()
+    assert not at.exception
+    assert at.chat_input(key="agent_q").disabled
+    assert at.button(key="agent_sample_0").label == data_agent.SAMPLE_QUESTIONS[0]
+    assert at.button(key="agent_sample_0").disabled
+
+
+def test_talk_to_my_agent_shows_answer_sql_table_and_followups(monkeypatch, tmp_path):
+    monkeypatch.setenv("PUBLISH_MODE", "local")
+    monkeypatch.setenv("CATALOG_SOURCE", "sample")
+    monkeypatch.setenv("LOCAL_EVENTS_FILE", str(tmp_path / "events.jsonl"))
+    at = AppTest.from_file(str(APP), default_timeout=30)
+    reply = data_agent.AgentReply("Covent Garden has **400** left.", "SELECT 400", [{"store": "Covent Garden"}],
+                                  None, ["And Camden?"], None, "https://console.cloud.google.com/bigquery?j=1")
+    at.session_state["agent_turns"] = [{"q": "Which stores have FirmX?", "reply": reply},
+                                       {"q": "Second?", "error": "Agent call failed: boom"}]
+    at.run()
+    assert not at.exception
+    assert any("Covent Garden has **400** left." in m.value for m in at.markdown)
+    assert [c.value for c in at.code] == ["SELECT 400"]
+    assert any(list(d.value.columns) == ["store"] and d.value["store"].tolist() == ["Covent Garden"]
+               for d in at.dataframe)
+    assert "Open this job in BigQuery" in [b.label for b in at.link_button]
+    assert at.error[0].value == "Agent call failed: boom"
+    assert "agent_followup_0" not in [b.key for b in at.button]

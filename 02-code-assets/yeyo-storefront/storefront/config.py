@@ -94,6 +94,7 @@ class Config:
     dq_scan_id: str = "yeyo-oversell-dq"
     looker_report_url: str = ""
     spark_notebook_url: str = ""
+    data_agent_id: str = "yeyo-viral-analyst"
     viral_listing_id: str = "LST-0017"
     viral_partner_units: int = 600
     viral_page_views: int = 13000
@@ -187,6 +188,7 @@ def load_config(env_file: Optional[os.PathLike] = None) -> Config:
         dq_scan_id=_env("DQ_SCAN_ID", "yeyo-oversell-dq"),
         looker_report_url=_env("LOOKER_REPORT_URL", ""),
         spark_notebook_url=_env("SPARK_NOTEBOOK_URL", ""),
+        data_agent_id=_env("DATA_AGENT_ID", "yeyo-viral-analyst"),
         viral_listing_id=_env("VIRAL_LISTING_ID", "LST-0017"),
         viral_partner_units=max(1, _env_int("VIRAL_PARTNER_UNITS", 600)),
         viral_page_views=max(1, _env_int("VIRAL_PAGE_VIEWS", 13000)),
