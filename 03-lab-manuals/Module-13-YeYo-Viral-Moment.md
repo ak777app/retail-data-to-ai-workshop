@@ -180,29 +180,7 @@ Then run the scan (`gcloud dataplex datascans run yeyo-oversell-dq --location=$L
 
 ## 6. Agent
 
-The storefront's **Ask the data agent** tab calls the Module 21 data analyst agent through its ADK API server, so you don't need `adk web`. Deploy the agent as a private Cloud Run service with its own service account (it needs a `requirements.txt` inside the agent folder):
-
-```
-AGENT_SA=yeyo-data-agent-sa@$PROJECT_ID.iam.gserviceaccount.com
-gcloud iam service-accounts create yeyo-data-agent-sa
-for r in roles/bigquery.dataViewer roles/bigquery.jobUser roles/aiplatform.user roles/storage.objectViewer; do
-  gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$AGENT_SA --role=$r --condition=None; done
-mkdir -p ~/agent_stage && cp -r ~/retail-data-to-ai-workshop/02-code-assets/capstone-retail-solution/data_analyst_agent/data_analyst_agent ~/agent_stage/
-cd ~/agent_stage && rm -f data_analyst_agent/.env data_analyst_agent/test.py
-printf "python-dotenv\ngoogle-cloud-aiplatform\ngoogle-cloud-bigquery\ngoogle-cloud-storage\ngoogle-genai\nvertexai\npandas\ndb-dtypes\n" > data_analyst_agent/requirements.txt
-adk deploy cloud_run --project $PROJECT_ID --region us-central1 --service_name yeyo-data-agent --app_name data_analyst_agent \
-  --env GOOGLE_CLOUD_LOCATION=global --env GOOGLE_GENAI_USE_VERTEXAI=True --env GEMINI_MODEL=gemini-3.1-pro-preview \
-  --env BQ_DATASET_IN_SCOPE=capstone_ds --env BQ_METADATA_BUCKET=capstone_stage_$PROJECT_NBR \
-  --env BQ_METADATA_FILE=metadata/captone_database_metadata_grounding.md --env GOOGLE_CLOUD_PROJECT_NUMBER=$PROJECT_NBR \
-  --provider-args=--service-account=$AGENT_SA --provider-args=--no-allow-unauthenticated ./data_analyst_agent
-gcloud run services add-iam-policy-binding yeyo-data-agent --region us-central1 --member=serviceAccount:$SA --role=roles/run.invoker
-gcloud run services update yeyo-storefront --region us-central1 \
-  --update-env-vars DATA_AGENT_URL=$(gcloud run services describe yeyo-data-agent --region us-central1 --format='value(status.url)')
-```
-
-Locally, run `adk api_server` in `02-code-assets/capstone-retail-solution/data_analyst_agent` and set `DATA_AGENT_URL=http://localhost:8000`.
-
-Ask: *"Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand from stock_master_location for the latest stock_date."* The answer includes the SQL the agent ran; expand **Tool** to see the calls. Answers take about 30 seconds.
+The storefront doesn't embed the agent. To show it, run the Module 21 data analyst agent in `adk web` and set `AGENT_URL` (section 5) so **Demo links** opens it under scene 4. Ask: *"Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand from stock_master_location for the latest stock_date."*
 
 ## 7. 5-minute talk track
 
@@ -213,7 +191,7 @@ Ask: *"Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on han
 | 1:10 | Oversell caught | Red alert + gauge; DQ scan link |
 | 1:40 | CDO: can we trust it? | Lineage of `oversell_alerts`: clickstream + orders + Spark Iceberg feed; Knowledge Catalog `aspect:yeyo-partner-feed`: partner stock on Google Cloud and AWS in one list |
 | 2:10 | Head of Engineering: open formats | Spark batch ➜ Iceberg files in your bucket ➜ same table in BigQuery |
-| 2:40 | Agent acts | Ask the data agent: "Where can we still fulfil…?" ➜ London stores; Marketing tab: pause ads, collect in store, private label ads |
+| 2:40 | Marketing reacts | Marketing tab: pause ads, collect in store, private label ads |
 | 3:00 | Ads now point to stores | Spike pauses at sell-out; Shop tab: the product now takes click & collect only; back to Ops resumes |
 | 3:10 | Strong finish | Stores sell out too: Marketplace units vs. Marketplace + click & collect, about 3× |
 | 3:30 | Next-day contrast | Live vs. next-day chart; query in place day one, move only what must be real time |
