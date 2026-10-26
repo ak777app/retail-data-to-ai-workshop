@@ -151,7 +151,7 @@ def test_demo_links_are_four_platform_buttons(monkeypatch, tmp_path):
     at = AppTest.from_file(str(APP), default_timeout=30).run()
     assert not at.exception
     assert [b.label for b in at.link_button] == ["Lineage", "Multi-Cloud", "Unified Governance",
-                                               "PySpark notebook: JSON feed ➜ Iceberg"]
+                                               "Pyspark notebook"]
     assert at.button(key="plat_pii").label == "Data Protection" and at.button(key="plat_pii").disabled
     labels = [b.label for b in at.button]
     assert "Run on AWS with BigQuery Omni" not in labels and "Load lineage" not in labels

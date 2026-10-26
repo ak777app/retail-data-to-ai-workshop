@@ -186,7 +186,7 @@ def test_timed_out_orders_keep_partner_stock_consumed(catalog):
 
 def test_demo_links_are_lineage_multicloud_governance(config):
     links = demo_links(config)
-    assert [link.label for link in links] == ["Lineage", "Unified Governance", "PySpark notebook: JSON feed ➜ Iceberg"]
+    assert [link.label for link in links] == ["Lineage", "Unified Governance", "Pyspark notebook"]
     assert list(group_links(links)) == ["Platform", "Additional links"]
     assert all("project=test-project" in link.url for link in links)
     assert links[0].url.endswith(f"!3s{config.oversell_view}")

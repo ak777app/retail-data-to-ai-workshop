@@ -75,7 +75,7 @@ def demo_links(config: Config) -> List[DemoLink]:
     if config.aws_s3_bucket:
         links.append(DemoLink(DEMO_SCENE, "Multi-Cloud", _bq_table_url(p, config.aws_dataset, config.aws_s3_table)))
     links.append(DemoLink(DEMO_SCENE, "Unified Governance", _search_url(p, config.partner_stock_table)))
-    links.append(DemoLink(EXTRA_SCENE, "PySpark notebook: JSON feed ➜ Iceberg", spark_notebook_url(config)))
+    links.append(DemoLink(EXTRA_SCENE, "Pyspark notebook", spark_notebook_url(config)))
     return links
 
 
