@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Viral-moment marketing: campaign bids and banners for the Ops tab, plus traffic and next-best-action queries."""
+"""Viral-moment marketing: campaign bids and banners for the Marketing tab, plus traffic and next-best-action queries."""
 
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
