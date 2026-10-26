@@ -156,7 +156,7 @@ def parse_reply(messages: List[Dict]) -> AgentReply:
             if sm["data"].get("bigQueryJob", {}).get("jobId"):
                 job = job_url(sm["data"]["bigQueryJob"])
             if "result" in sm["data"]:
-                rows = sm["data"]["result"].get("data") or []
+                rows = (sm["data"]["result"] or {}).get("data") or []
         if "chart" in sm and (sm["chart"].get("result") or {}).get("vegaConfig"):
             chart = sm["chart"]["result"]["vegaConfig"]
         if "error" in sm:

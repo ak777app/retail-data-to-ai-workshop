@@ -712,11 +712,12 @@ with governance_tab:
 def _ask_agent(question: str) -> None:
     try:
         new = data_agent.ask(config, ss.agent_history, question)
+        reply = data_agent.parse_reply(new[1:])
     except Exception as exc:
         ss.agent_turns.append({"q": question, "error": f"Agent call failed: {exc.__class__.__name__}: {str(exc)[:300]}"})
         return
     ss.agent_history = ss.agent_history + new
-    ss.agent_turns.append({"q": question, "reply": data_agent.parse_reply(new[1:])})
+    ss.agent_turns.append({"q": question, "reply": reply})
 
 
 def _pick_question(q: str) -> None:

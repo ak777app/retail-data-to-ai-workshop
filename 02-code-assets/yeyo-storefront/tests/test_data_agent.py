@@ -128,5 +128,6 @@ def test_parse_reply_keeps_only_the_last_query_rows():
         {"systemMessage": {"data": {"result": {"data": [{"n": 1}]}}}},
         {"systemMessage": {"data": {"generatedSql": "SELECT 0 LIMIT 0"}}},
         {"systemMessage": {"data": {"result": {"data": []}}}},
+        {"systemMessage": {"data": {"result": None}}},
     ])
     assert r.sql == "SELECT 0 LIMIT 0" and r.rows == []
