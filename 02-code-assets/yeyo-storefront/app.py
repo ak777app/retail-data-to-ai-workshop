@@ -46,6 +46,7 @@ from storefront.ops import (
     store_stock_sql,
 )
 from storefront.ops import TERMINAL_BATCH_STATES, batch_state, submit_restock
+from storefront import data_agent
 from storefront import platform as lake
 from storefront.viral import ViralConfig, ViralJob, viral_listing
 
@@ -86,6 +87,8 @@ ss.setdefault("ops_bq", {})
 ss.setdefault("hero_sold_out", None)
 ss.setdefault("open_dialog", None)
 ss.setdefault("channel", CHANNEL_ONLINE)
+ss.setdefault("agent_history", [])
+ss.setdefault("agent_turns", [])
 
 
 def _money(v) -> str:
@@ -213,8 +216,8 @@ st.title("YeYo")
 st.caption("Everyday pharmacy, wellness and lifestyle - in-store, online and on the YeYo Marketplace.")
 
 DEMO_TAB = "Demo center"
-shop_tab, demo_tab, marketing_tab, engineering_tab, governance_tab = st.tabs(
-    ["Shop", DEMO_TAB, "Marketing", "Engineering", "Governance"], key="nav", on_change="rerun")
+shop_tab, demo_tab, marketing_tab, engineering_tab, governance_tab, agent_tab = st.tabs(
+    ["Shop", DEMO_TAB, "Marketing", "Engineering", "Governance", "Talk to my Agent"], key="nav", on_change="rerun")
 # Coming back to the Demo center tab while the spike is paused resumes it (no button needed on stage).
 _nav, _prev_nav = ss.get("nav"), ss.get("prev_nav")
 ss.prev_nav = _nav
@@ -703,6 +706,77 @@ with governance_tab:
         st.caption("Customer PII queried as the storefront: `email` and `phone_number` carry policy tags and the "
                    "storefront's service account is a Masked Reader. The presenter (Fine-Grained Reader) sees the "
                    "real values in BigQuery Studio.")
+
+
+# ---------------------------------------------------------------- talk to my agent
+def _ask_agent(question: str) -> None:
+    try:
+        new = data_agent.ask(config, ss.agent_history, question)
+        reply = data_agent.parse_reply(new[1:])
+    except Exception as exc:
+        ss.agent_turns.append({"q": question, "error": f"Agent call failed: {exc.__class__.__name__}: {str(exc)[:300]}"})
+        return
+    ss.agent_history = ss.agent_history + new
+    ss.agent_turns.append({"q": question, "reply": reply})
+
+
+def _pick_question(q: str) -> None:
+    ss.agent_pending = q
+
+
+def _new_conversation() -> None:
+    ss.agent_history, ss.agent_turns = [], []
+
+
+def _agent_answer(turn: dict, last: bool, offline: bool) -> None:
+    if "error" in turn:
+        st.error(turn["error"])
+        return
+    r = turn["reply"]
+    if r.error:
+        st.error(r.error)
+    st.markdown(r.text or "_The agent returned no answer text._")
+    if r.chart:
+        st.vega_lite_chart(spec=r.chart, width="stretch")
+    if r.rows:
+        st.dataframe(r.rows, hide_index=True, width="stretch")
+    if r.sql:
+        with st.expander("SQL the agent ran in BigQuery"):
+            st.code(r.sql, language="sql")
+    if r.job_url:
+        st.link_button("Open this job in BigQuery", r.job_url)
+    if last and r.followups:
+        st.caption("Follow-up questions")
+        for i, q in enumerate(r.followups[:3]):
+            st.button(q, key=f"agent_followup_{i}", on_click=_pick_question, args=(q,), disabled=offline)
+
+
+with agent_tab:
+    offline = config.publish_mode == "local"
+    st.caption("Ask YeYo viral analyst, a Gemini data agent, in plain English. It picks the tables, writes the "
+               "SQL and runs it in BigQuery as the storefront, so customer email and phone stay masked.")
+    if offline:
+        st.info("Talk to my Agent needs BigQuery and the data agent (Module 13 section 6); it is off while "
+                "PUBLISH_MODE=local.")
+    cols = st.columns(len(data_agent.SAMPLE_QUESTIONS) + 1)
+    for i, q in enumerate(data_agent.SAMPLE_QUESTIONS):
+        cols[i].button(q, key=f"agent_sample_{i}", on_click=_pick_question, args=(q,), width="stretch",
+                       disabled=offline)
+    cols[-1].button("New conversation", key="agent_reset", on_click=_new_conversation, width="stretch",
+                    disabled=not ss.agent_turns)
+    for i, turn in enumerate(ss.agent_turns):
+        with st.chat_message("user"):
+            st.markdown(turn["q"])
+        with st.chat_message("assistant"):
+            _agent_answer(turn, i == len(ss.agent_turns) - 1, offline)
+    typed = st.chat_input("Ask about the viral moment, orders, stock or campaigns", key="agent_q", disabled=offline)
+    question = ss.pop("agent_pending", None) or typed
+    if question and not offline:
+        with st.chat_message("user"):
+            st.markdown(question)
+        with st.chat_message("assistant"), st.spinner("Gemini is writing SQL and querying BigQuery..."):
+            _ask_agent(question)
+        st.rerun()
 
 
 # ---------------------------------------------------------------- story pop-ups

@@ -132,19 +132,20 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET --member=serviceAccou
 
 ## 5. Run the storefront demo tabs
 
-Set `LAKEHOUSE_BUCKET=$BUCKET` in `.env`, or on Cloud Run with `gcloud run services update yeyo-storefront --update-env-vars LAKEHOUSE_BUCKET=$BUCKET`. After **Shop**, the storefront has four demo tabs. Open **Demo center** and press **Go viral**:
+Set `LAKEHOUSE_BUCKET=$BUCKET` in `.env`, or on Cloud Run with `gcloud run services update yeyo-storefront --update-env-vars LAKEHOUSE_BUCKET=$BUCKET`. After **Shop**, the storefront has five demo tabs. Open **Demo center** and press **Go viral**:
 
 - **Demo center**: the Go viral / Stop / Reset demo controls; live shoppers, add-to-carts, orders, partner and store units left and waitlist, charted per 10 seconds; live vs. next-day batch report for the same orders; and **Proof: latest Pub/Sub events landed in BigQuery** (collapsed, shown while a spike runs): the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, plus events per minute.
 - **Marketing**: the partner-stock gauge (from `vw_oversell_risk`, refreshed every 10 seconds) and the red oversell alert, which is also written to `oversell_alerts`; ad banners for each live campaign ("Hurry: only N left" during the surge, "Click & collect today" with the stores that have stock, the own-brand substitute once partner stock is gone), with the bids table below them. The viral alert and sold-out pop-ups appear on whichever tab is open.
 - **Engineering**: **Pyspark notebook** opens the Glow Lab JSON ➜ Iceberg ingest (the same code Reset demo runs) and **Multi-Cloud** opens FitGear's BigLake table on S3 (section 9).
 - **Governance**: **Lineage** opens `vw_oversell_risk` (Lineage tab), **Unified Governance** opens the Knowledge Catalog entry for the Iceberg table, and **Data Protection** queries `customer_master` as the storefront and shows the masked email and phone (section 10).
+- **Talk to my Agent**: chat with the YeYo viral analyst data agent in plain English (section 6).
 
 **Story flow (no clicks between beats except Go viral):**
 
 1. Before the spike, the Marketing tab shows marketing's current (simulated) bids on other products.
 2. **Go viral**: shoppers, carts and orders climb; the spike pauses automatically at `VIRAL_PAUSE_UNITS` partner units left (default 400, "Demo settings"). A **Viral alert** pop-up shows shoppers in the last minute, carts and time to sell-out; its button deploys high-bid Google Shopping, Search and social campaigns on the hero product.
 3. Show the new campaign banners and bids on the Marketing tab. Coming back to Demo center resumes the spike.
-4. When partner stock runs out, a **Sold out** pop-up lists the London stores with stock; the hero campaigns pause and high-bid "collect in store today" local inventory ads plus ads for the private label **YeYo Instant Eye Firming Gel** (`BEA-3004`) start. The spike carries on as click & collect orders from store stock (`VIRAL_STORE_UNITS`, default 400 per store, set in `stock_master_location` by **Reset demo**). The spike pauses again right there, before the first store order ("Pause again when partner stock sells out" in "Demo settings", `VIRAL_PAUSE_AT_SELL_OUT`, default on). Open the **Shop** tab to show the product taking click & collect orders only; switching back to the Ops tab resumes the spike.
+4. When partner stock runs out, a **Sold out** pop-up lists the London stores with stock; the hero campaigns pause and high-bid "collect in store today" local inventory ads plus ads for the private label **YeYo Instant Eye Firming Gel** (`BEA-3004`) start. The spike carries on as click & collect orders from store stock (`VIRAL_STORE_UNITS`, default 400 per store, set in `stock_master_location` by **Reset demo**). The spike pauses again right there, before the first store order ("Pause again when partner stock sells out" in "Demo settings", `VIRAL_PAUSE_AT_SELL_OUT`, default on). Open the **Shop** tab to show the product taking click & collect orders only; switching back to Demo center resumes the spike.
 5. When the stores sell out too, a **finish** pop-up compares units sold: Marketplace only (no lakehouse: the stores are never used) vs. Marketplace plus click & collect, about 3× with the defaults. On the **Shop** tab (online or marketplace channel) the product's **Add to cart** becomes **Click & collect**, which publishes an online order with `fulfillment_type = CLICK_AND_COLLECT` and the chosen store as `location_id`.
 
 The simulator also sends a GA4-style `purchase` clickstream event with each order, so traffic source and postcode are attributed per session.
@@ -169,9 +170,22 @@ gcloud iam service-accounts add-iam-policy-binding $SPARK_SA --member=serviceAcc
 
 Then run the scan (`gcloud dataplex datascans run yeyo-oversell-dq --location=$LOCATION`) to show the rule failing on the oversold listing.
 
-## 6. Agent
+## 6. Talk to my Agent
 
-The storefront doesn't embed the agent. To show it, run the Module 21 data analyst agent in `adk web` and ask: *"Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand from stock_master_location for the latest stock_date."*
+The **Talk to my Agent** tab chats with **YeYo viral analyst**, a BigQuery data agent on the Conversational Analytics API (Gemini Data Analytics). Google hosts the model; you don't deploy an agent. The agent knows 12 `capstone_ds` tables and views (clickstream, online and marketplace orders, products, listings, sellers, `vw_oversell_risk`, `vw_partner_stock`, store stock and stores, oversell alerts, customers), a short YeYo system prompt and two example queries. You don't name tables: for each question it picks them, writes the SQL and runs it in BigQuery as the caller.
+
+Create or update the agent and let the storefront's service account chat with it:
+
+```
+gcloud services enable geminidataanalytics.googleapis.com cloudaicompanion.googleapis.com
+python -m storefront.data_agent $PROJECT_ID --user serviceAccount:$SA
+```
+
+The script grants Data Agent User on the agent only; the service account keeps its existing BigQuery roles. It also appears under **Agents** in BigQuery Studio, where you can chat with it as yourself.
+
+Each answer shows the agent's text, a chart when one fits (ask for a chart, e.g. the first sample question), the result table, **SQL the agent ran in BigQuery** and **Open this job in BigQuery**, plus follow-up questions to click. **New conversation** clears the chat history the tab sends with each question.
+
+Governance point: ask *"Show me 3 customers' emails"*. The agent queries `customer_master` as the storefront, a Masked Reader (section 10), so it only ever sees `XXXXX@domain` addresses.
 
 ## 7. 5-minute talk track
 
@@ -185,6 +199,7 @@ The storefront doesn't embed the agent. To show it, run the Module 21 data analy
 | 2:40 | Marketing reacts | Marketing tab campaign banners: pause ads, collect in store, private label ads |
 | 3:00 | Ads now point to stores | Spike pauses at sell-out; Shop tab: the product now takes click & collect only; back to Demo center resumes |
 | 3:10 | Strong finish | Stores sell out too: Marketplace units vs. Marketplace + click & collect, about 3× |
+| 3:20 | LOB: ask it yourself | Talk to my Agent: "Which London stores still have Instant FirmX Temporary Eye Tightener in stock?" and the SQL it ran |
 | 3:30 | Next-day contrast | Live vs. next-day chart; query in place day one, move only what must be real time |
 | 4:30 | Close | "Same viral moment, same product. The only difference is whether your data arrives in minutes or tomorrow, and that's an architecture decision." |
 
