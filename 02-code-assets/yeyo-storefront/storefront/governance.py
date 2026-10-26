@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Sets up the governed catalog for the Data platform tab (Module 13 section 10).
+"""Sets up the governed catalog and PII masking (Module 13 section 10).
 
   python -m storefront.governance YOUR_PROJECT_ID --presenter you@example.com
 

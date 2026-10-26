@@ -17,7 +17,7 @@ from types import SimpleNamespace
 from pathlib import Path
 
 from storefront.catalog import SAMPLE_DATA_DIR, _read_csv, load_bigquery_catalog
-from storefront.ops import (CONSOLE, demo_links, group_links, looker_create_url, restock_batch, risk_level,
+from storefront.ops import (demo_links, group_links, looker_create_url, restock_batch, risk_level,
                             submit_restock)
 from storefront.publisher import BigQueryPublisher, PubSubPublisher, event_attributes, event_to_row
 from storefront.marketing import (PHASE_SOLD_OUT, PHASE_STORES_OUT, PHASE_SURGE, PHASE_VIRAL, campaign_bids, story_phase,
@@ -96,16 +96,6 @@ def test_risk_level_matches_view_rule():
     assert risk_level(100, 50) == "OK"
     assert risk_level(100, 150) == "AT_RISK"
     assert risk_level(0, 0) == "OVERSOLD"
-
-
-def test_demo_links_use_config(config, monkeypatch):
-    links = demo_links(config)
-    assert all("project=test-project" in link.url for link in links if link.url.startswith(CONSOLE))
-    assert not any("storage/browser" in link.url for link in links)
-    assert "3c · Engineering: Spark + Iceberg" in group_links(links)
-    bucketed = demo_links(config.__class__(**{**config.__dict__, "lakehouse_bucket": "b1", "agent_url": "http://a"}))
-    assert any("storage/browser/b1/iceberg" in link.url for link in bucketed)
-    assert bucketed[-1].url == "http://a"
 
 
 def test_looker_create_url_targets_oversell_view(config):
@@ -194,17 +184,21 @@ def test_timed_out_orders_keep_partner_stock_consumed(catalog):
     assert job.snapshot()["units_ordered"] > 0
 
 
+def test_demo_links_are_lineage_multicloud_governance(config):
+    links = demo_links(config)
+    assert [link.label for link in links] == ["Lineage", "Unified Governance", "PySpark notebook: JSON feed ➜ Iceberg"]
+    assert list(group_links(links)) == ["Platform", "Additional links"]
+    assert all("project=test-project" in link.url for link in links)
+    assert links[0].url.endswith(f"!3s{config.oversell_view}")
+    links = demo_links(config.__class__(**{**config.__dict__, "aws_s3_bucket": "yeyo-glowlab-1"}))
+    assert [link.label for link in links][:3] == ["Lineage", "Multi-Cloud", "Unified Governance"]
+    assert links[1].url.endswith("!2syeyo_partner_aws!3sfitgear_stock")
+
+
 def test_console_links_use_current_paths(config):
     urls = [link.url for link in demo_links(config)]
     assert any("/dataplex/dp-search?" in u for u in urls)
     assert not any("/dataplex/search?" in u or "/bigquery/lakehouse" in u for u in urls)
-
-
-def test_ops_demo_links_trimmed(config):
-    links = demo_links(config)
-    assert not any(link.scene.startswith(("2 ", "3a ")) for link in links)
-    urls = [link.url for link in links]
-    assert not any("/biglake?" in u or "/dataproc/batches" in u or "page=jobs" in u for u in urls)
 
 
 def test_session_events_share_referrer_and_postcode(catalog, config):
@@ -381,30 +375,6 @@ def test_reset_store_stock_sends_per_store_units(config):
     assert bq.params == {"units": [0, 12], "locations": ["A", "B"]}
     reset_store_stock(config, "BEA-3001", "BEA-3001-OM", ["A", "B"], 400, client=bq)
     assert bq.params["units"] == [400, 400]
-
-
-def _aws_config(config, **kw):
-    return config.__class__(**{**config.__dict__, "aws_s3_bucket": "yeyo-glowlab-1", **kw})
-
-
-def test_aws_demo_links_add_scene_next_to_spark(config):
-    assert "3d · Engineering: AWS S3 + BigQuery Omni" not in group_links(demo_links(config))
-    links = demo_links(_aws_config(config, agent_url="http://a"))
-    grouped = group_links(links)
-    assert "3c · Engineering: Spark + Iceberg" in grouped
-    aws = grouped["3d · Engineering: AWS S3 + BigQuery Omni"]
-    assert [link.label for link in aws if "BigLake on S3" in link.label] == [
-        "BigLake on S3 (Iceberg): yeyo_partner_aws.fitgear_stock (Query it here; Lineage tab)"]
-    assert "Omni result in GCP: yeyo_partner_east4.fitgear_low_stock" in [link.label for link in aws]
-    assert any(link.url.endswith("!2syeyo_partner_aws!3sfitgear_stock") for link in aws)
-    assert aws[-1].url == "https://s3.console.aws.amazon.com/s3/buckets/yeyo-glowlab-1?region=us-east-1&prefix=iceberg/partner_stock/"
-    assert links[-1].url == "http://a"
-
-
-def test_catalog_link_lists_partner_feeds_from_both_clouds(config):
-    catalog = [link for link in demo_links(config) if "Google Cloud + AWS" in link.label]
-    assert len(catalog) == 1 and catalog[0].scene == "3b · CDO: lineage & catalog"
-    assert catalog[0].url.endswith("&q=aspect%3Ayeyo-partner-feed")
 
 
 def test_partner_feed_aspect_matches_tagging_script():

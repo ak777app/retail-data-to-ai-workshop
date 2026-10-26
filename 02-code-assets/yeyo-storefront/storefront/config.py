@@ -92,7 +92,6 @@ class Config:
     aws_result_dataset: str = "yeyo_partner_east4"
     aws_result_table: str = "fitgear_low_stock"
     dq_scan_id: str = "yeyo-oversell-dq"
-    agent_url: str = ""
     looker_report_url: str = ""
     spark_notebook_url: str = ""
     viral_listing_id: str = "LST-0017"
@@ -186,7 +185,6 @@ def load_config(env_file: Optional[os.PathLike] = None) -> Config:
         aws_result_dataset=_env("AWS_RESULT_DATASET", "yeyo_partner_east4"),
         aws_result_table=_env("AWS_RESULT_TABLE", "fitgear_low_stock"),
         dq_scan_id=_env("DQ_SCAN_ID", "yeyo-oversell-dq"),
-        agent_url=_env("AGENT_URL", ""),
         looker_report_url=_env("LOOKER_REPORT_URL", ""),
         spark_notebook_url=_env("SPARK_NOTEBOOK_URL", ""),
         viral_listing_id=_env("VIRAL_LISTING_ID", "LST-0017"),
