@@ -85,7 +85,6 @@ ss.setdefault("orders", [])
 ss.setdefault("viral_job", None)
 ss.setdefault("restock", None)
 ss.setdefault("ops_bq", {})
-ss.setdefault("clickstream_view", {})
 ss.setdefault("hero_sold_out", None)
 ss.setdefault("open_dialog", None)
 ss.setdefault("channel", CHANNEL_ONLINE)
@@ -320,7 +319,8 @@ def _ops_bigquery(job: ViralJob) -> None:
         return
     cache["at"] = now
     params = {"listing_id": job.listing.listing_id, "omni_item_id": job.product.omni_item_id}
-    for key, sql in (("risk", oversell_sql(config)), ("stores", store_stock_sql(config))):
+    for key, sql in (("risk", oversell_sql(config)), ("minutes", per_minute_sql(config)),
+                     ("stores", store_stock_sql(config)), ("latest", latest_clickstream_sql(config, limit=20))):
         try:
             cache[key] = run_query(config, sql, params)
             cache.pop(f"{key}_error", None)
@@ -468,48 +468,6 @@ def _restock_status_body(restocking: bool) -> None:
         st.rerun(scope="app")
 
 
-def _clickstream_query(listing) -> None:
-    view = ss.clickstream_view
-    view["at"] = datetime.now(timezone.utc)
-    params = {"listing_id": listing.listing_id}
-    for key, sql in (("latest", latest_clickstream_sql(config, limit=20)), ("minutes", per_minute_sql(config))):
-        try:
-            view[key] = run_query(config, sql, params)
-            view.pop(f"{key}_error", None)
-        except Exception as exc:
-            view[f"{key}_error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
-
-
-def _clickstream_view(listing, polling: bool) -> None:
-    """Latest clickstream rows in BigQuery: stays on screen between runs (refreshed while the spike runs)."""
-
-    @st.fragment(run_every=10.0 if polling else None)
-    def clickstream_live() -> None:
-        st.markdown(f"**Clickstream landed in BigQuery** (`{config.clickstream_table}`, from Pub/Sub "
-                    f"`{config.clickstream_topic}`)")
-        if config.publish_mode == "local":
-            st.caption("Local mode: clickstream is not written to BigQuery.")
-            return
-        view = ss.clickstream_view
-        stale = not view.get("at") or (datetime.now(timezone.utc) - view["at"]).total_seconds() >= 10
-        refresh = st.button("Refresh", key="clickstream_refresh")
-        if refresh or (stale and (polling or not view.get("at"))):
-            _clickstream_query(listing)
-        if view.get("latest"):
-            st.dataframe(view["latest"], hide_index=True, width="stretch")
-        elif "latest" in view:
-            st.caption(f"No clickstream for {listing.listing_id} in the last day: press **Go viral**.")
-        if view.get("minutes"):
-            st.markdown("Clickstream per minute (last 30 minutes)")
-            st.dataframe(view["minutes"], hide_index=True, width="stretch")
-        st.caption(f"Last read {view['at']:%H:%M:%S} UTC." if view.get("at") else "")
-        for key in ("latest_error", "minutes_error"):
-            if view.get(key):
-                st.caption(f"BigQuery {key.split('_')[0]}: {view[key]}")
-
-    clickstream_live()
-
-
 def _platform_call(key: str, fn) -> None:
     try:
         ss[key] = {"ok": fn()}
@@ -649,7 +607,14 @@ with ops_tab:
                            "reports in BigQuery. The trend shows up 24 hours later.")
 
             _bids_table(phase, snap["omni_item_id"], max(projected, 0))
-            for key in ("risk_error", "stores_error", "alert_error"):
+            with st.expander("Proof: latest Pub/Sub events landed in BigQuery "
+                             f"({config.clickstream_table})"):
+                if bq.get("latest"):
+                    st.dataframe(bq["latest"], hide_index=True, width="stretch")
+                if bq.get("minutes"):
+                    st.markdown("Clickstream per minute (landed rows)")
+                    st.dataframe(bq["minutes"], hide_index=True, width="stretch")
+            for key in ("risk_error", "minutes_error", "stores_error", "latest_error", "alert_error"):
                 if bq.get(key):
                     st.caption(f"BigQuery {key.split('_')[0]}: {bq[key]}")
             for err in snap["errors"]:
@@ -705,9 +670,6 @@ with ops_tab:
             st.caption("Customer PII queried as the storefront: `email` and `phone_number` carry policy tags and the "
                        "storefront's service account is a Masked Reader. The presenter (Fine-Grained Reader) sees the "
                        "real values in BigQuery Studio.")
-
-    if hero_listing is not None:
-        _clickstream_view(hero_listing, polling)
 
 
 # ---------------------------------------------------------------- story pop-ups

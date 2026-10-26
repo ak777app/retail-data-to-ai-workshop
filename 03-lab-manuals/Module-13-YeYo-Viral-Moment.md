@@ -138,8 +138,8 @@ Set `LAKEHOUSE_BUCKET=$BUCKET` in `.env`, or on Cloud Run with `gcloud run servi
 - the partner-stock gauge (from `vw_oversell_risk`, refreshed every 10 seconds) and the red oversell alert, which is also written to `oversell_alerts`;
 - simulated marketing campaigns: ad banners for each live campaign ("Hurry: only N left" during the surge, "Click & collect today" with the stores that have stock, the own-brand substitute once partner stock is gone), with the bids table below them;
 - live vs. next-day batch report for the same orders;
+- **Proof: latest Pub/Sub events landed in BigQuery** (collapsed, shown while a spike runs): the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, plus events per minute, to show the chart is backed by real data;
 - **Demo links**: four buttons. **Lineage** opens `vw_oversell_risk` (Lineage tab), **Multi-Cloud** opens FitGear's BigLake table on S3 (section 9), **Unified Governance** opens the Knowledge Catalog entry for the Iceberg table, and **Data Protection** queries `customer_master` as the storefront and shows the masked email and phone (section 10). Below them, **Additional links** has the PySpark notebook.
-- **Clickstream landed in BigQuery**, below Demo links: the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, plus events per minute, to show the chart is backed by real data. It stays on screen between runs, refreshes every 10 seconds during the spike, and has a **Refresh** button.
 
 **Story flow (no clicks between beats except Go viral):**
 
