@@ -609,6 +609,8 @@ with ops_tab:
             _bids_table(phase, snap["omni_item_id"], max(projected, 0))
             with st.expander("Proof: latest Pub/Sub events landed in BigQuery "
                              f"({config.clickstream_table})"):
+                if config.publish_mode == "local":
+                    st.caption("Local mode: clickstream is not written to BigQuery.")
                 if bq.get("latest"):
                     st.dataframe(bq["latest"], hide_index=True, width="stretch")
                 if bq.get("minutes"):
