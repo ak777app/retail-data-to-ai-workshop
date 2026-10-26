@@ -121,3 +121,12 @@ def test_parse_reply_uses_a_matched_example_query_and_reports_errors():
         {"systemMessage": {"error": {"text": "Table not found"}}},
     ])
     assert r.sql == "SELECT 2" and r.error == "Table not found" and r.text == ""
+
+
+def test_parse_reply_keeps_only_the_last_query_rows():
+    r = da.parse_reply([
+        {"systemMessage": {"data": {"result": {"data": [{"n": 1}]}}}},
+        {"systemMessage": {"data": {"generatedSql": "SELECT 0 LIMIT 0"}}},
+        {"systemMessage": {"data": {"result": {"data": []}}}},
+    ])
+    assert r.sql == "SELECT 0 LIMIT 0" and r.rows == []
