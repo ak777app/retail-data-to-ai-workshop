@@ -54,7 +54,7 @@ def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
     monkeypatch.setenv("VIRAL_PAUSE_AT_SELL_OUT", "false")
     st.cache_resource.clear()
     at = AppTest.from_file(APP, default_timeout=30).run()
-    assert [t.label for t in at.tabs] == ["Shop", "Ops: viral moment"]
+    assert [t.label for t in at.tabs] == ["Shop", "Demo center", "Marketing", "Engineering", "Governance"]
     next(b for b in at.button if b.label == "Go viral").click().run()
     at.session_state["viral_job"].join(30)
     at.run()
@@ -108,7 +108,7 @@ def test_viral_story_pauses_resumes_and_switches_shop_to_click_and_collect(monke
 
     at.session_state["open_dialog"] = None
     at.session_state["prev_nav"] = "Shop"
-    at.session_state["nav"] = "Ops: viral moment"
+    at.session_state["nav"] = "Demo center"
     at.run()
     for _ in range(600):
         if job.is_paused:
@@ -125,7 +125,7 @@ def test_viral_story_pauses_resumes_and_switches_shop_to_click_and_collect(monke
 
     at.session_state["open_dialog"] = None
     at.session_state["prev_nav"] = "Shop"
-    at.session_state["nav"] = "Ops: viral moment"
+    at.session_state["nav"] = "Demo center"
     at.run()
     job.join(30)
     assert not job.is_running and job.store_units_sold > 0
@@ -142,7 +142,7 @@ def test_every_product_has_a_bundled_image():
     assert products and not [p.item_number for p in products if not product_image(p)]
 
 
-def test_demo_links_are_four_platform_buttons(monkeypatch, tmp_path):
+def test_engineering_and_governance_tabs_have_the_platform_buttons(monkeypatch, tmp_path):
     monkeypatch.setenv("PUBLISH_MODE", "local")
     monkeypatch.setenv("CATALOG_SOURCE", "sample")
     monkeypatch.setenv("LOCAL_EVENTS_FILE", str(tmp_path / "events.jsonl"))
@@ -150,8 +150,7 @@ def test_demo_links_are_four_platform_buttons(monkeypatch, tmp_path):
     st.cache_resource.clear()
     at = AppTest.from_file(str(APP), default_timeout=30).run()
     assert not at.exception
-    assert [b.label for b in at.link_button] == ["Lineage", "Multi-Cloud", "Unified Governance",
-                                               "Pyspark notebook"]
+    assert [b.label for b in at.link_button] == ["Pyspark notebook", "Multi-Cloud", "Lineage", "Unified Governance"]
     assert at.button(key="plat_pii").label == "Data Protection" and at.button(key="plat_pii").disabled
     labels = [b.label for b in at.button]
     assert "Run on AWS with BigQuery Omni" not in labels and "Load lineage" not in labels

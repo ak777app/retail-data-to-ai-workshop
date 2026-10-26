@@ -35,9 +35,7 @@ from storefront.marketing import (
 )
 from storefront.publisher import AutoPublisher, BasePublisher, create_publisher
 from storefront.ops import (
-    DEMO_SCENE,
     demo_links,
-    group_links,
     latest_clickstream_sql,
     oversell_sql,
     per_minute_sql,
@@ -214,12 +212,13 @@ with st.sidebar:
 st.title("YeYo")
 st.caption("Everyday pharmacy, wellness and lifestyle - in-store, online and on the YeYo Marketplace.")
 
-OPS_TAB = "Ops: viral moment"
-shop_tab, ops_tab = st.tabs(["Shop", OPS_TAB], key="nav", on_change="rerun")
-# Coming back to the Ops tab while the spike is paused resumes it (no button needed on stage).
+DEMO_TAB = "Demo center"
+shop_tab, demo_tab, marketing_tab, engineering_tab, governance_tab = st.tabs(
+    ["Shop", DEMO_TAB, "Marketing", "Engineering", "Governance"], key="nav", on_change="rerun")
+# Coming back to the Demo center tab while the spike is paused resumes it (no button needed on stage).
 _nav, _prev_nav = ss.get("nav"), ss.get("prev_nav")
 ss.prev_nav = _nav
-if ss.viral_job is not None and ss.viral_job.is_paused and _nav == OPS_TAB and _prev_nav not in (None, OPS_TAB):
+if ss.viral_job is not None and ss.viral_job.is_paused and _nav == DEMO_TAB and _prev_nav not in (None, DEMO_TAB):
     ss.viral_job.resume()
 
 # ---------------------------------------------------------------- shop
@@ -483,21 +482,37 @@ def _platform_result(key: str):
     return r["ok"] if r else None
 
 
-with ops_tab:
-    try:
-        hero_listing = viral_listing(catalog, config.viral_listing_id)
-    except ValueError as exc:
-        st.error(str(exc))
-        hero_listing = None
-    if hero_listing is not None:
+try:
+    hero_listing = viral_listing(catalog, config.viral_listing_id)
+except ValueError as exc:
+    hero_listing = None
+    hero_error = str(exc)
+vjob: ViralJob = ss.viral_job
+v_running = bool(vjob and vjob.is_running)
+polling = v_running or bool(vjob and vjob.seconds_since_end < 60)
+
+
+def _live_risk(snap: dict) -> dict:
+    """Partner stock from vw_oversell_risk when BigQuery has it, else from the simulator."""
+    bq_risk = (ss.ops_bq.get("risk") or [None])[0]
+    projected = bq_risk["projected_units"] if bq_risk else snap["projected_units"]
+    return {"source": "BigQuery view" if bq_risk else "simulator", "projected": projected,
+            "partner": bq_risk["partner_units"] if bq_risk else snap["partner_units"],
+            "level": bq_risk["risk_level"] if bq_risk else risk_level(projected, snap["cart_units"]),
+            "ordered": bq_risk["units_ordered_since_snapshot"] if bq_risk else snap["units_ordered"]}
+
+
+# ---------------------------------------------------------------- demo center
+with demo_tab:
+    if hero_listing is None:
+        st.error(hero_error)
+    else:
         hero = catalog.product(hero_listing.omni_item_id)
         seller = catalog.sellers[hero_listing.seller_id]
         st.markdown(f"### {hero.description}")
         st.caption(f"`{hero.omni_item_id}` on the YeYo Marketplace from **{seller.seller_name}** "
                    f"(`{hero_listing.listing_id}`, listing says {hero_listing.stock_status}) and in YeYo stores. "
                    f"Clickstream streams to `{config.clickstream_topic}`, orders to `{config.pubsub_topic}`.")
-        vjob: ViralJob = ss.viral_job
-        v_running = bool(vjob and vjob.is_running)
         with st.expander("Demo settings"):
             c1, c2, c3, c4, c5 = st.columns(5)
             v_units = c1.number_input("Partner units on hand (last feed)", min_value=1, max_value=100000,
@@ -539,31 +554,23 @@ with ops_tab:
             _restock_status_body(restocking)
 
         restock_status()
-        polling = v_running or bool(vjob and vjob.seconds_since_end < 60)
 
         @st.fragment(run_every=2.0 if polling else None)
         def viral_live() -> None:
             job: ViralJob = ss.viral_job
             if job is None:
-                _bids_table(PHASE_BASELINE, hero.omni_item_id)
                 st.caption("Press **Go viral** to start the TikTok moment.")
                 return
             snap = job.snapshot()
             _ops_bigquery(job)
             bq = ss.ops_bq
-            bq_risk = (bq.get("risk") or [None])[0]
-            projected = bq_risk["projected_units"] if bq_risk else snap["projected_units"]
-            partner = bq_risk["partner_units"] if bq_risk else snap["partner_units"]
-            level = bq_risk["risk_level"] if bq_risk else risk_level(projected, snap["cart_units"])
-            ordered = bq_risk["units_ordered_since_snapshot"] if bq_risk else snap["units_ordered"]
-            phase = _phase(snap)
+            projected = _live_risk(snap)["projected"]
 
             if snap["paused"] and snap["sell_out_pause_done"]:
                 st.warning("Spike paused: ads now point to London stores. Show the Shop tab taking click & collect "
                            "orders only; coming back here resumes it.", icon="⏸️")
             elif snap["paused"]:
-                st.warning("Spike paused for the talk track. Show the campaigns below, then switch to Shop and back "
-                           "here to resume it.",
+                st.warning("Spike paused for the talk track. Show the Marketing tab; coming back here resumes it.",
                            icon="⏸️")
             m = st.columns(6)
             m[0].metric("Shoppers on the page (last 60s)", f"{snap['live_shoppers']:,}")
@@ -574,19 +581,6 @@ with ops_tab:
             m[5].metric("Waitlist", f"{snap['waitlist']:,}")
             if snap["projected_units"] <= 0 and snap["store_units_total"]:
                 _finish_card(snap)
-
-            if level == "OK":
-                st.success(f"Partner stock OK: {max(projected, 0):,} of {partner:,} units left.")
-            else:
-                st.error(
-                    f"OVERSELL {'RISK' if level == 'AT_RISK' else 'CAUGHT'}: listing {snap['listing_id']} says "
-                    f"IN STOCK, but {snap['seller_name']}'s feed shows {partner:,} units and "
-                    f"{ordered:,} have already been ordered ({max(projected, 0):,} left).",
-                    icon="🚨",
-                )
-            st.progress(max(min(projected / partner, 1.0), 0.0) if partner else 0.0,
-                        text=f"Partner stock gauge: {max(projected, 0):,} / {partner:,} units "
-                             f"({'BigQuery view' if bq_risk else 'simulator'})")
 
             left, right = st.columns(2)
             with left:
@@ -606,7 +600,6 @@ with ops_tab:
                 st.caption("Siloed: clickstream in Databricks on AWS, partner stock in an overnight batch, "
                            "reports in BigQuery. The trend shows up 24 hours later.")
 
-            _bids_table(phase, snap["omni_item_id"], max(projected, 0))
             with st.expander("Proof: latest Pub/Sub events landed in BigQuery "
                              f"({config.clickstream_table})"):
                 if config.publish_mode == "local":
@@ -652,26 +645,64 @@ with ops_tab:
 
         viral_live()
 
-    with st.expander("Demo links"):
-        st.caption("Opens the Google Cloud console in a new tab (sign in to the presenting account first).")
-        grouped = group_links(demo_links(config))
-        links = grouped.pop(DEMO_SCENE)
-        cols = st.columns(len(links) + 1)
-        for col, link in zip(cols, links):
-            col.link_button(link.label, link.url, width="stretch")
-        if cols[-1].button("Data Protection", key="plat_pii", width="stretch",
-                           disabled=config.publish_mode == "local"):
-            _platform_call("plat_pii_result", lambda: lake.query_pii(config))
-        for scene, extra in grouped.items():
-            st.caption(scene)
-            for col, link in zip(st.columns(len(cols)), extra):
-                col.link_button(link.label, link.url, width="stretch")
-        pii = _platform_result("plat_pii_result")
-        if pii:
-            st.dataframe(pii, hide_index=True, width="stretch")
-            st.caption("Customer PII queried as the storefront: `email` and `phone_number` carry policy tags and the "
-                       "storefront's service account is a Masked Reader. The presenter (Fine-Grained Reader) sees the "
-                       "real values in BigQuery Studio.")
+# ---------------------------------------------------------------- marketing
+with marketing_tab:
+    if hero_listing is not None:
+        @st.fragment(run_every=2.0 if polling else None)
+        def marketing_live() -> None:
+            job: ViralJob = ss.viral_job
+            if job is None:
+                _bids_table(PHASE_BASELINE, hero_listing.omni_item_id)
+                st.caption("Press **Go viral** on the Demo center tab to start the TikTok moment.")
+                return
+            snap = job.snapshot()
+            r = _live_risk(snap)
+            projected, partner = r["projected"], r["partner"]
+            if r["level"] == "OK":
+                st.success(f"Partner stock OK: {max(projected, 0):,} of {partner:,} units left.")
+            else:
+                st.error(
+                    f"OVERSELL {'RISK' if r['level'] == 'AT_RISK' else 'CAUGHT'}: listing {snap['listing_id']} says "
+                    f"IN STOCK, but {snap['seller_name']}'s feed shows {partner:,} units and "
+                    f"{r['ordered']:,} have already been ordered ({max(projected, 0):,} left).",
+                    icon="🚨",
+                )
+            st.progress(max(min(projected / partner, 1.0), 0.0) if partner else 0.0,
+                        text=f"Partner stock gauge: {max(projected, 0):,} / {partner:,} units ({r['source']})")
+            _bids_table(_phase(snap), snap["omni_item_id"], max(projected, 0))
+
+        marketing_live()
+
+_links = {link.label: link for link in demo_links(config)}
+CONSOLE_NOTE = "Opens the Google Cloud console in a new tab (sign in to the presenting account first)."
+
+# ---------------------------------------------------------------- engineering
+with engineering_tab:
+    st.caption(CONSOLE_NOTE)
+    c1, c2, _ = st.columns(3)
+    c1.link_button("Pyspark notebook", _links["Pyspark notebook"].url, width="stretch",
+                   help="Managed Spark: Glow Lab's JSON feed ➜ Iceberg (the same code Reset demo runs).")
+    if "Multi-Cloud" in _links:
+        c2.link_button("Multi-Cloud", _links["Multi-Cloud"].url, width="stretch",
+                       help="BigQuery Omni: FitGear's Iceberg table in Amazon S3, queried in place.")
+    else:
+        c2.button("Multi-Cloud", key="multicloud_off", width="stretch", disabled=True,
+                  help="Set AWS_S3_BUCKET to link FitGear's table on Amazon S3 (Module 13 section 9).")
+
+# ---------------------------------------------------------------- governance
+with governance_tab:
+    st.caption(CONSOLE_NOTE)
+    c1, c2, c3 = st.columns(3)
+    c1.link_button("Lineage", _links["Lineage"].url, width="stretch")
+    c2.link_button("Unified Governance", _links["Unified Governance"].url, width="stretch")
+    if c3.button("Data Protection", key="plat_pii", width="stretch", disabled=config.publish_mode == "local"):
+        _platform_call("plat_pii_result", lambda: lake.query_pii(config))
+    pii = _platform_result("plat_pii_result")
+    if pii:
+        st.dataframe(pii, hide_index=True, width="stretch")
+        st.caption("Customer PII queried as the storefront: `email` and `phone_number` carry policy tags and the "
+                   "storefront's service account is a Masked Reader. The presenter (Fine-Grained Reader) sees the "
+                   "real values in BigQuery Studio.")
 
 
 # ---------------------------------------------------------------- story pop-ups
@@ -713,7 +744,7 @@ def _sold_out_dialog() -> None:
                     "the rest of the search and social traffic around the video.")
     if snap["paused"]:
         st.caption("The spike is paused. Open the Shop tab: the product now takes click & collect orders only. "
-                   "Coming back to the Ops tab resumes it.")
+                   "Coming back to the Demo center tab resumes it.")
     if st.button("OK", type="primary"):
         _close_dialog()
         st.rerun()
