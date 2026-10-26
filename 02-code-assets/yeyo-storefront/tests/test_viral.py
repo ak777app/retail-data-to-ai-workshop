@@ -201,8 +201,14 @@ def test_console_links_use_current_paths(config):
     urls = [link.url for link in demo_links(config)]
     assert any("/dataplex/dp-search?" in u for u in urls)
     assert any("/dataplex/govern/data-profiling-and-quality?" in u for u in urls)
-    assert any("/biglake?" in u for u in urls)
     assert not any("/dataplex/search?" in u or "/bigquery/lakehouse" in u for u in urls)
+
+
+def test_ops_demo_links_trimmed(config):
+    links = demo_links(config)
+    assert not any(link.scene.startswith("2 ") for link in links)
+    urls = [link.url for link in links]
+    assert not any("/biglake?" in u or "/dataproc/batches" in u or "page=jobs" in u for u in urls)
 
 
 def test_session_events_share_referrer_and_postcode(catalog, config):

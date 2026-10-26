@@ -70,14 +70,6 @@ def demo_links(config: Config) -> List[DemoLink]:
     looker_label = ("Looker Studio: oversell report" if config.looker_report_url
                     else "Looker Studio: new report on the oversell view")
     links = [
-        DemoLink("2 · Goes viral", f"Pub/Sub topic {config.clickstream_topic}",
-                 f"{CONSOLE}/cloudpubsub/topic/detail/{config.clickstream_topic}?project={p}"),
-        DemoLink("2 · Goes viral", f"Pub/Sub topic {config.pubsub_topic}",
-                 f"{CONSOLE}/cloudpubsub/topic/detail/{config.pubsub_topic}?project={p}"),
-        DemoLink("2 · Goes viral", f"BigQuery {config.clickstream_table}",
-                 _bq_table_url(p, ds, config.clickstream_table)),
-        DemoLink("2 · Goes viral", f"BigQuery {config.marketplace_orders_table}",
-                 _bq_table_url(p, ds, config.marketplace_orders_table)),
         DemoLink("3a · Oversell alert", f"BigQuery {config.oversell_view}", _bq_table_url(p, ds, config.oversell_view)),
         DemoLink("3a · Oversell alert", f"BigQuery {config.oversell_alerts_table}",
                  _bq_table_url(p, ds, config.oversell_alerts_table)),
@@ -96,10 +88,6 @@ def demo_links(config: Config) -> List[DemoLink]:
                  _search_url(p, config.partner_stock_table)),
         DemoLink("3c · Engineering: Spark + Iceberg", "PySpark notebook: JSON feed ➜ Iceberg (Colab Enterprise)",
                  spark_notebook_url(config)),
-        DemoLink("3c · Engineering: Spark + Iceberg", "Spark batch jobs (Serverless for Apache Spark)",
-                 f"{CONSOLE}/dataproc/batches?project={p}"),
-        DemoLink("3c · Engineering: Spark + Iceberg", "Lakehouse runtime catalog",
-                 f"{CONSOLE}/biglake?project={p}"),
     ]
     if config.lakehouse_bucket:
         links.append(DemoLink("3c · Engineering: Spark + Iceberg", "Cloud Storage: Parquet + Iceberg metadata",
@@ -111,8 +99,6 @@ def demo_links(config: Config) -> List[DemoLink]:
                      _bq_table_url(p, aws, config.aws_s3_table)),
             DemoLink(scene, f"Omni result in GCP: {config.aws_result_dataset}.{config.aws_result_table}",
                      _bq_table_url(p, config.aws_result_dataset, config.aws_result_table)),
-            DemoLink(scene, f"BigQuery jobs in {config.aws_location} (Omni executions)",
-                     f"{CONSOLE}/bigquery?project={p}&page=jobs"),
             DemoLink(scene, f"Amazon S3: FitGear's Iceberg files in {config.aws_s3_bucket}/{AWS_S3_PREFIX}",
                      f"https://s3.console.aws.amazon.com/s3/buckets/{config.aws_s3_bucket}"
                      f"?region={config.aws_location.removeprefix('aws-')}&prefix={AWS_S3_PREFIX}"),

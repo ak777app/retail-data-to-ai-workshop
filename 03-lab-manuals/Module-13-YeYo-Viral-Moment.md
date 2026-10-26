@@ -138,7 +138,7 @@ Set `LAKEHOUSE_BUCKET=$BUCKET` (and optionally `AGENT_URL` to your `adk web` or 
 - the partner-stock gauge (from `vw_oversell_risk`, refreshed every 10 seconds) and the red oversell alert, which is also written to `oversell_alerts`;
 - a simulated marketing card: keywords, branches with stock for "collect in store today", and the substitute product once partner stock is gone;
 - live vs. next-day batch report for the same orders;
-- **Demo links**: Pub/Sub topics, BigQuery tables, the data quality scan, a Looker Studio report, lineage, the Knowledge Catalog entry for the Iceberg table, a Knowledge Catalog search for partner stock on Google Cloud and AWS (section 9), Spark batches and the Cloud Storage folder.
+- **Demo links**: the oversell view and alerts table, the data quality scan, a Looker Studio report, lineage, the Knowledge Catalog entry for the Iceberg table, a Knowledge Catalog search for partner stock on Google Cloud and AWS (section 9), the PySpark notebook and the Cloud Storage folder.
 - **Latest Pub/Sub events landed in BigQuery**: the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, to show the chart is backed by real data.
 
 **Story flow (no clicks between beats except Go viral):**
