@@ -106,7 +106,9 @@ def campaign_banners(rows: Sequence[Dict], units_left: Optional[int] = None, lim
             banners.append(Banner(campaign, product, "CLICK & COLLECT TODAY", "Collect it in store today",
                                   r["Targeting"].replace("within 10 miles of ", "At "), "COLLECT IN STORE", "store"))
         elif campaign == "Private label":
-            banners.append(Banner(campaign, product, "NEW: YEYO OWN BRAND", "Try our own-brand alternative", "",
+            own = "yeyo" in product.lower()
+            banners.append(Banner(campaign, product, "NEW: YEYO OWN BRAND" if own else "NEW: TRY THE ALTERNATIVE",
+                                  "Try our own-brand alternative" if own else "A similar product, in stock now", "",
                                   "SHOP THE ALTERNATIVE", "brand"))
         else:
             banners.append(Banner(campaign, product, "EVERYDAY ESSENTIALS", r["Targeting"].capitalize(), "",

@@ -337,6 +337,8 @@ def test_campaign_banners_show_live_campaigns():
     assert "Chicago store" in sold[0].detail
     done = campaign_banners(campaign_bids(PHASE_STORES_OUT, "Hero", others, "YeYo serum", ["Chicago store"]), 0)
     assert done[0].product == "YeYo serum"
+    other = campaign_banners(campaign_bids(PHASE_SOLD_OUT, "Hero", others, "Other serum", ["Chicago store"]), 0)
+    assert other[1].badge == "NEW: TRY THE ALTERNATIVE"
 
 
 def test_viral_continues_as_click_and_collect_from_store_stock(catalog, config):
