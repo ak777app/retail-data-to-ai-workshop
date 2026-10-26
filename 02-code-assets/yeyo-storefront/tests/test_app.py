@@ -54,8 +54,7 @@ def test_ops_tab_runs_viral_moment_locally(monkeypatch, tmp_path):
     monkeypatch.setenv("VIRAL_PAUSE_AT_SELL_OUT", "false")
     st.cache_resource.clear()
     at = AppTest.from_file(APP, default_timeout=30).run()
-    assert [t.label for t in at.tabs] == ["Shop", "Ops: viral moment", "Data platform", "Marketing: viral moment",
-                                          "Ask the data agent"]
+    assert [t.label for t in at.tabs] == ["Shop", "Ops: viral moment", "Data platform", "Marketing: viral moment"]
     next(b for b in at.button if b.label == "Go viral").click().run()
     at.session_state["viral_job"].join(30)
     at.run()

@@ -52,7 +52,6 @@ from storefront.ops import (
 )
 from storefront.ops import TERMINAL_BATCH_STATES, batch_state, spark_notebook_url, submit_restock
 from storefront import platform as lake
-from storefront import agent as data_agent
 from storefront.viral import ViralConfig, ViralJob, viral_listing
 
 CHANNEL_LABELS = {
@@ -222,8 +221,8 @@ st.caption("Everyday pharmacy, wellness and lifestyle - in-store, online and on 
 
 OPS_TAB = "Ops: viral moment"
 PLATFORM_TAB = "Data platform"
-shop_tab, ops_tab, platform_tab, marketing_tab, agent_tab = st.tabs(
-    ["Shop", OPS_TAB, PLATFORM_TAB, "Marketing: viral moment", "Ask the data agent"], key="nav", on_change="rerun")
+shop_tab, ops_tab, platform_tab, marketing_tab = st.tabs(
+    ["Shop", OPS_TAB, PLATFORM_TAB, "Marketing: viral moment"], key="nav", on_change="rerun")
 # Coming back to the Ops tab while the spike is paused resumes it (no button needed on stage).
 _nav, _prev_nav = ss.get("nav"), ss.get("prev_nav")
 ss.prev_nav = _nav
@@ -892,57 +891,6 @@ with marketing_tab:
                 st.caption(f"BigQuery {key.split('_')[0]}: {mk[key]}")
 
     marketing_live()
-
-# ---------------------------------------------------------------- data agent
-AGENT_QUESTIONS = (
-    "Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand from stock_master_location "
-    "for the latest stock_date.",
-    "How many units of BEA-3001-OM were sold by channel today, and how many were click & collect by store?",
-    "Which products have the most marketplace orders in the last hour?",
-)
-
-
-def _ask_agent(question: str) -> None:
-    chat = ss.setdefault("agent_chat", [])
-    chat.append({"role": "user", "text": question})
-    try:
-        if not ss.get("agent_session"):
-            ss.agent_user = data_agent.new_user_id()
-            ss.agent_session = data_agent.create_session(config.data_agent_url, config.data_agent_app, ss.agent_user)
-        answer, steps = data_agent.ask(config.data_agent_url, config.data_agent_app, ss.agent_user,
-                                       ss.agent_session, question)
-        chat.append({"role": "assistant", "text": answer or "(no answer)", "steps": steps})
-    except Exception as exc:
-        chat.append({"role": "assistant", "text": f"Agent call failed: {exc.__class__.__name__}: {str(exc)[:300]}"})
-
-
-with agent_tab:
-    st.markdown("### Ask the data analyst agent")
-    st.caption(f"ADK agent `{config.data_agent_app}`: Gemini writes the SQL, the agent runs it in BigQuery "
-               f"(`{config.bq_dataset}`) and answers with the query it used.")
-    if not config.data_agent_url:
-        st.info("Set `DATA_AGENT_URL` to the agent's ADK API server: `adk api_server` locally "
-                "(http://localhost:8000) or the `yeyo-data-agent` Cloud Run URL (Module 13).")
-    else:
-        cols = st.columns(len(AGENT_QUESTIONS))
-        for i, q in enumerate(AGENT_QUESTIONS):
-            if cols[i].button(q, key=f"agent_q{i}", width="stretch"):
-                with st.spinner("The agent is writing and running SQL..."):
-                    _ask_agent(q)
-        for msg in ss.get("agent_chat", []):
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["text"])
-                for step in msg.get("steps") or []:
-                    with st.expander(f"Tool: {step['tool']}"):
-                        st.json({k: step.get(k) for k in ("args", "result")}, expanded=False)
-        question = st.chat_input("Ask about orders, stock, customers...", key="agent_input")
-        if question:
-            with st.spinner("The agent is writing and running SQL..."):
-                _ask_agent(question)
-            st.rerun()
-        if ss.get("agent_chat") and st.button("New conversation", key="agent_reset"):
-            ss.agent_chat, ss.agent_session = [], None
-            st.rerun()
 
 # ---------------------------------------------------------------- story pop-ups
 def _close_dialog() -> None:
