@@ -136,10 +136,10 @@ Set `LAKEHOUSE_BUCKET=$BUCKET` (and optionally `AGENT_URL` to your `adk web` or 
 
 - live page views, add-to-carts, orders and waitlist, charted per 10 seconds;
 - the partner-stock gauge (from `vw_oversell_risk`, refreshed every 10 seconds) and the red oversell alert, which is also written to `oversell_alerts`;
-- a simulated marketing card: keywords, branches with stock for "collect in store today", and the substitute product once partner stock is gone;
+- simulated marketing campaigns: ad banners for each live campaign ("Hurry: only N left" during the surge, "Click & collect today" with the stores that have stock, the own-brand substitute once partner stock is gone), with the bids table below them; the Marketing tab shows the same banners;
 - live vs. next-day batch report for the same orders;
-- **Demo links**: the oversell view and alerts table, the data quality scan, a Looker Studio report, lineage, the Knowledge Catalog entry for the Iceberg table, a Knowledge Catalog search for partner stock on Google Cloud and AWS (section 9), the PySpark notebook and the Cloud Storage folder.
-- **Latest Pub/Sub events landed in BigQuery**: the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, to show the chart is backed by real data.
+- **Demo links**: lineage, the Knowledge Catalog entry for the Iceberg table, a Knowledge Catalog search for partner stock on Google Cloud and AWS (section 9), the PySpark notebook and the Cloud Storage folder.
+- **Clickstream landed in BigQuery**, below Demo links: the newest `clickstream_events` rows with their Pub/Sub `message_id`, `publish_time` and `subscription_name`, plus events per minute, to show the chart is backed by real data. It stays on screen between runs, refreshes every 10 seconds during the spike, and has a **Refresh** button.
 
 **Story flow (no clicks between beats except Go viral):**
 
@@ -158,12 +158,12 @@ Set `LAKEHOUSE_BUCKET=$BUCKET` (and optionally `AGENT_URL` to your `adk web` or 
 
 The simulator also sends a GA4-style `purchase` clickstream event with each order, so traffic source and postcode are attributed per session.
 
-**Looker Studio (optional, alongside the Ops tab).** Demo links > **Looker Studio: new report on the oversell view** opens a new report (Linking API) already connected to `vw_oversell_risk`. Then:
+**Looker Studio (optional, alongside the Ops tab).** In Looker Studio, create a report with a BigQuery data source on `capstone_ds.vw_oversell_risk`. Then:
 
 1. Add a scorecard for `partner_units`, a scorecard for `projected_units` and a table with `listing_id`, `risk_level`, `units_ordered_since_snapshot` and `partner_snapshot_ts`. Give `risk_level` conditional formatting: red when it equals `OVERSOLD`.
 2. **Add data** > BigQuery > `capstone_ds.clickstream_events`, and add a time series of record count by `publish_time` (minute) broken down by `event_type`.
 3. **Resource** > **Manage added data sources** > edit each source > **Data freshness** > every 1 minute (the BigQuery default is 12 hours). Press **Refresh data** during the demo for an immediate update.
-4. Save the report, then set `LOOKER_REPORT_URL` to its URL (`gcloud run services update yeyo-storefront --update-env-vars LOOKER_REPORT_URL=...`) so the button opens it.
+4. Save the report and keep it open in a browser tab next to the storefront.
 
 The Ops tab polls BigQuery every 10 seconds; the report is at most a minute behind, so show the alert firing on the Ops tab and the report as the dashboard marketing already uses on the same view.
 

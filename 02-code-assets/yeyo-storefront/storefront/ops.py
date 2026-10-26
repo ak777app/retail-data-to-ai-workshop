@@ -67,15 +67,7 @@ def looker_create_url(config: Config) -> str:
 
 def demo_links(config: Config) -> List[DemoLink]:
     p, ds = config.project_id, config.bq_dataset
-    looker_label = ("Looker Studio: oversell report" if config.looker_report_url
-                    else "Looker Studio: new report on the oversell view")
     links = [
-        DemoLink("3a · Oversell alert", f"BigQuery {config.oversell_view}", _bq_table_url(p, ds, config.oversell_view)),
-        DemoLink("3a · Oversell alert", f"BigQuery {config.oversell_alerts_table}",
-                 _bq_table_url(p, ds, config.oversell_alerts_table)),
-        DemoLink("3a · Oversell alert", f"Data quality scan {config.dq_scan_id}",
-                 f"{CONSOLE}/dataplex/govern/data-profiling-and-quality?project={p}"),
-        DemoLink("3a · Oversell alert", looker_label, config.looker_report_url or looker_create_url(config)),
         DemoLink("3b · CDO: lineage & catalog", f"Lineage: {config.oversell_view} (open the Lineage tab)",
                  _bq_table_url(p, ds, config.oversell_view)),
         DemoLink("3b · CDO: lineage & catalog", "Knowledge Catalog: BEA-3001 assets",

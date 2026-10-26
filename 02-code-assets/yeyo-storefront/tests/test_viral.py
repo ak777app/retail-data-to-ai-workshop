@@ -17,10 +17,11 @@ from types import SimpleNamespace
 from pathlib import Path
 
 from storefront.catalog import SAMPLE_DATA_DIR, _read_csv, load_bigquery_catalog
-from storefront.ops import CONSOLE, demo_links, group_links, restock_batch, risk_level, submit_restock
+from storefront.ops import (CONSOLE, demo_links, group_links, looker_create_url, restock_batch, risk_level,
+                            submit_restock)
 from storefront.publisher import BigQueryPublisher, PubSubPublisher, event_attributes, event_to_row
 from storefront.marketing import (PHASE_SOLD_OUT, PHASE_STORES_OUT, PHASE_SURGE, PHASE_VIRAL, campaign_bids, story_phase,
-                                  ACTION_SCALE, ACTION_STORE, ACTION_SUBSTITUTE, by_postcode_sql,
+                                  ACTION_SCALE, campaign_banners, ACTION_STORE, ACTION_SUBSTITUTE, by_postcode_sql,
                                   by_referrer_sql, next_best_action, simulator_rows, totals)
 from storefront.viral import ViralConfig, ViralJob, build_clickstream_event, viral_listing
 from test_publisher_and_spike import FakeBigQueryClient, FakePubSubClient
@@ -107,16 +108,12 @@ def test_demo_links_use_config(config, monkeypatch):
     assert bucketed[-1].url == "http://a"
 
 
-def test_looker_link_targets_oversell_view(config):
+def test_looker_create_url_targets_oversell_view(config):
     from urllib.parse import parse_qs, urlparse
-    looker = [link for link in demo_links(config) if "Looker" in link.label]
-    assert len(looker) == 1 and looker[0].scene == "3a · Oversell alert"
-    qs = {k: v[0] for k, v in parse_qs(urlparse(looker[0].url).query).items()}
+    qs = {k: v[0] for k, v in parse_qs(urlparse(looker_create_url(config)).query).items()}
     assert qs["ds.connector"] == "bigQuery" and qs["ds.type"] == "TABLE"
     assert (qs["ds.projectId"], qs["ds.datasetId"], qs["ds.tableId"]) == ("test-project", config.bq_dataset,
                                                                           config.oversell_view)
-    saved = demo_links(config.__class__(**{**config.__dict__, "looker_report_url": "https://lookerstudio.google.com/r"}))
-    assert [link.url for link in saved if "Looker" in link.label] == ["https://lookerstudio.google.com/r"]
 
 
 def test_no_alloydb_dependency():
@@ -200,13 +197,12 @@ def test_timed_out_orders_keep_partner_stock_consumed(catalog):
 def test_console_links_use_current_paths(config):
     urls = [link.url for link in demo_links(config)]
     assert any("/dataplex/dp-search?" in u for u in urls)
-    assert any("/dataplex/govern/data-profiling-and-quality?" in u for u in urls)
     assert not any("/dataplex/search?" in u or "/bigquery/lakehouse" in u for u in urls)
 
 
 def test_ops_demo_links_trimmed(config):
     links = demo_links(config)
-    assert not any(link.scene.startswith("2 ") for link in links)
+    assert not any(link.scene.startswith(("2 ", "3a ")) for link in links)
     urls = [link.url for link in links]
     assert not any("/biglake?" in u or "/dataproc/batches" in u or "page=jobs" in u for u in urls)
 
@@ -328,6 +324,19 @@ def test_campaign_bids_follow_story():
     assert story_phase(True, True, 0, 10) == PHASE_SOLD_OUT and story_phase(True, True, 0, 0) == PHASE_STORES_OUT
     done = campaign_bids(PHASE_STORES_OUT, "Hero", others, "YeYo serum", ["Chicago store"])
     assert done[0]["Status"] == "Paused: stores sold out" and done[1]["Status"].startswith("NEW")
+
+
+def test_campaign_banners_show_live_campaigns():
+    others = [("Allergy relief", "allergy")]
+    assert [b.badge for b in campaign_banners(campaign_bids(PHASE_VIRAL, "Hero", others))] == ["EVERYDAY ESSENTIALS"]
+    surge = campaign_banners(campaign_bids(PHASE_SURGE, "Hero", others), units_left=120)
+    assert surge[0].badge == "HURRY: ONLY 120 LEFT" and surge[0].detail.count(" · ") == 2
+    assert [b.product for b in surge] == ["Hero", "Allergy relief"]
+    sold = campaign_banners(campaign_bids(PHASE_SOLD_OUT, "Hero", others, "YeYo serum", ["Chicago store"]), 0)
+    assert [b.badge for b in sold] == ["CLICK & COLLECT TODAY", "NEW: YEYO OWN BRAND", "EVERYDAY ESSENTIALS"]
+    assert "Chicago store" in sold[0].detail
+    done = campaign_banners(campaign_bids(PHASE_STORES_OUT, "Hero", others, "YeYo serum", ["Chicago store"]), 0)
+    assert done[0].product == "YeYo serum"
 
 
 def test_viral_continues_as_click_and_collect_from_store_stock(catalog, config):

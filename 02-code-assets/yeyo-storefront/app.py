@@ -17,6 +17,8 @@
 Run:  streamlit run app.py --server.port 8080
 """
 
+import base64
+import html
 import json
 from datetime import datetime, timezone
 
@@ -29,6 +31,7 @@ from storefront.marketing import (
     PHASE_BASELINE,
     by_postcode_sql,
     by_referrer_sql,
+    campaign_banners,
     campaign_bids,
     simulator_rows,
     story_phase,
@@ -87,6 +90,7 @@ ss.setdefault("viral_job", None)
 ss.setdefault("restock", None)
 ss.setdefault("ops_bq", {})
 ss.setdefault("mkt_bq", {})
+ss.setdefault("clickstream_view", {})
 ss.setdefault("hero_sold_out", None)
 ss.setdefault("open_dialog", None)
 ss.setdefault("channel", CHANNEL_ONLINE)
@@ -323,8 +327,7 @@ def _ops_bigquery(job: ViralJob) -> None:
         return
     cache["at"] = now
     params = {"listing_id": job.listing.listing_id, "omni_item_id": job.product.omni_item_id}
-    for key, sql in (("risk", oversell_sql(config)), ("minutes", per_minute_sql(config)),
-                     ("stores", store_stock_sql(config)), ("latest", latest_clickstream_sql(config))):
+    for key, sql in (("risk", oversell_sql(config)), ("stores", store_stock_sql(config))):
         try:
             cache[key] = run_query(config, sql, params)
             cache.pop(f"{key}_error", None)
@@ -348,7 +351,47 @@ def _clear_run() -> None:
     ss.open_dialog = None
 
 
-def _bids_table(phase: str, omni_item_id: str) -> None:
+BANNER_TONES = {"hurry": ("#c8102e", "#ffffff"), "store": ("#0a7d3b", "#ffffff"),
+                "brand": ("#f6e7a6", "#1b2a6b"), "always": ("#1b2a6b", "#ffffff")}
+
+
+@st.cache_data
+def _image_src(path: str) -> str:
+    if not path or path.startswith(("http://", "https://")):
+        return path
+    with open(path, "rb") as f:
+        return "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()
+
+
+def _campaign_banners(rows, units_left) -> None:
+    by_name = {p.description: p for p in catalog.products}
+    cards = []
+    for b in campaign_banners(rows, units_left):
+        bg, fg = BANNER_TONES[b.tone]
+        product = by_name.get(b.product)
+        src = _image_src(product_image(product)) if product else ""
+        img = (f'<img src="{html.escape(src)}" style="width:100%;height:100%;object-fit:contain">' if src else "")
+        detail = f'<div style="font-size:0.8rem;color:#5b6475;margin-top:4px">{html.escape(b.detail)}</div>' \
+            if b.detail else ""
+        cards.append(
+            f'<div style="flex:1 1 0;min-width:180px;background:#fff;border-radius:6px;overflow:hidden;'
+            f'position:relative;display:flex;flex-direction:column">'
+            f'<div style="height:150px;background:linear-gradient(135deg,{bg}22,{bg}55);padding:12px">{img}</div>'
+            f'<div style="position:absolute;top:0;right:0;background:{bg};color:{fg};font-weight:700;'
+            f'font-size:0.75rem;letter-spacing:0.08em;padding:6px 12px;border-bottom-left-radius:14px;'
+            f'max-width:70%;text-align:center">{html.escape(b.badge)}</div>'
+            f'<div style="padding:10px 14px 14px;text-align:center;flex:1;display:flex;flex-direction:column">'
+            f'<div style="color:#1b3bd1;font-size:1.05rem;font-weight:600">{html.escape(b.product)}</div>'
+            f'<div style="color:#333;font-size:0.9rem;margin-top:4px">{html.escape(b.headline)}</div>{detail}'
+            f'<div style="flex:1"></div>'
+            f'<div style="margin-top:10px;background:#1435c8;color:#fff;font-weight:700;letter-spacing:0.06em;'
+            f'padding:8px;border-radius:4px">{html.escape(b.cta)}</div></div></div>')
+    if cards:
+        st.html('<div style="display:flex;gap:16px;padding:16px;border-radius:8px;'
+                'background:linear-gradient(90deg,#14246b,#2442a8)">' + "".join(cards) + "</div>")
+
+
+def _bids_table(phase: str, omni_item_id: str, units_left=None) -> None:
     hero = catalog.product(omni_item_id)
     others, seen = [], {hero.category}
     for p in sorted(catalog.products, key=lambda p: p.omni_item_id):
@@ -358,7 +401,8 @@ def _bids_table(phase: str, omni_item_id: str) -> None:
     sub = _substitute_product(omni_item_id)
     rows = campaign_bids(phase, hero.description, others, sub.description if sub else None,
                          [_store_name(s) for s, _ in _stores_with_stock()])
-    st.markdown("**Marketing bids right now** (simulated: Google Ads is not connected)")
+    st.markdown("**Marketing campaigns right now** (simulated: Google Ads is not connected)")
+    _campaign_banners(rows, units_left)
     st.dataframe(rows, hide_index=True, width="stretch")
 
 
@@ -430,6 +474,48 @@ def _restock_status_body(restocking: bool) -> None:
         st.info(f"Restocking partner: Spark batch `{batch}` is {r['state']} (about 3 minutes).")
     if restocking and r["state"] in TERMINAL_BATCH_STATES:
         st.rerun(scope="app")
+
+
+def _clickstream_query(listing) -> None:
+    view = ss.clickstream_view
+    view["at"] = datetime.now(timezone.utc)
+    params = {"listing_id": listing.listing_id}
+    for key, sql in (("latest", latest_clickstream_sql(config, limit=20)), ("minutes", per_minute_sql(config))):
+        try:
+            view[key] = run_query(config, sql, params)
+            view.pop(f"{key}_error", None)
+        except Exception as exc:
+            view[f"{key}_error"] = f"{exc.__class__.__name__}: {str(exc)[:200]}"
+
+
+def _clickstream_view(listing, polling: bool) -> None:
+    """Latest clickstream rows in BigQuery: stays on screen between runs (refreshed while the spike runs)."""
+
+    @st.fragment(run_every=10.0 if polling else None)
+    def clickstream_live() -> None:
+        st.markdown(f"**Clickstream landed in BigQuery** (`{config.clickstream_table}`, from Pub/Sub "
+                    f"`{config.clickstream_topic}`)")
+        if config.publish_mode == "local":
+            st.caption("Local mode: clickstream is not written to BigQuery.")
+            return
+        view = ss.clickstream_view
+        stale = not view.get("at") or (datetime.now(timezone.utc) - view["at"]).total_seconds() >= 10
+        refresh = st.button("Refresh", key="clickstream_refresh")
+        if refresh or (stale and (polling or not view.get("at"))):
+            _clickstream_query(listing)
+        if view.get("latest"):
+            st.dataframe(view["latest"], hide_index=True, width="stretch")
+        elif "latest" in view:
+            st.caption(f"No clickstream for {listing.listing_id} in the last day: press **Go viral**.")
+        if view.get("minutes"):
+            st.markdown("Clickstream per minute (last 30 minutes)")
+            st.dataframe(view["minutes"], hide_index=True, width="stretch")
+        st.caption(f"Last read {view['at']:%H:%M:%S} UTC." if view.get("at") else "")
+        for key in ("latest_error", "minutes_error"):
+            if view.get(key):
+                st.caption(f"BigQuery {key.split('_')[0]}: {view[key]}")
+
+    clickstream_live()
 
 
 with ops_tab:
@@ -554,18 +640,10 @@ with ops_tab:
                 st.caption("Siloed: clickstream in Databricks on AWS, partner stock in an overnight batch, "
                            "reports in BigQuery. The trend shows up 24 hours later.")
 
-            _bids_table(phase, snap["omni_item_id"])
-
-            with st.expander("Proof: latest Pub/Sub events landed in BigQuery "
-                             f"({config.clickstream_table})"):
-                if bq.get("latest"):
-                    st.dataframe(bq["latest"], hide_index=True, width="stretch")
-                if bq.get("minutes"):
-                    st.markdown("Clickstream per minute (landed rows)")
-                    st.dataframe(bq["minutes"], hide_index=True, width="stretch")
-                for key in ("risk_error", "minutes_error", "stores_error", "latest_error", "alert_error"):
-                    if bq.get(key):
-                        st.caption(f"BigQuery {key.split('_')[0]}: {bq[key]}")
+            _bids_table(phase, snap["omni_item_id"], max(projected, 0))
+            for key in ("risk_error", "stores_error", "alert_error"):
+                if bq.get(key):
+                    st.caption(f"BigQuery {key.split('_')[0]}: {bq[key]}")
             for err in snap["errors"]:
                 st.error(err)
 
@@ -607,6 +685,9 @@ with ops_tab:
             for i, link in enumerate(links):
                 cols[i % len(cols)].link_button(link.label, link.url, width="stretch")
         st.code("Where can we still fulfil BEA-3001-OM? List YeYo stores with stock on hand.", language=None)
+
+    if hero_listing is not None:
+        _clickstream_view(hero_listing, polling)
 
 
 # ---------------------------------------------------------------- marketing
@@ -795,7 +876,7 @@ with marketing_tab:
                               "sessions": [float(r["sessions"]) for r in rows["referrer"]]},
                              x="referrer", y="sessions", horizontal=True)
 
-        _bids_table(_phase(snap), snap["omni_item_id"])
+        _bids_table(_phase(snap), snap["omni_item_id"], max(snap["projected_units"], 0))
 
         st.markdown("**Demand by postcode and next best action**")
         st.dataframe(
