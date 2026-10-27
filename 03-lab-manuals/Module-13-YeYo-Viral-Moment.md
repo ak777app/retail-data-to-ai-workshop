@@ -183,7 +183,7 @@ python -m storefront.data_agent $PROJECT_ID --user serviceAccount:$SA
 
 The script grants Data Agent User on the agent only; the service account keeps its existing BigQuery roles. It also appears under **Agents** in BigQuery Studio, where you can chat with it as yourself.
 
-Each answer shows the agent's text, a chart when one fits (ask for a chart, e.g. the first sample question), the result table, **SQL the agent ran in BigQuery** and **Open this job in BigQuery**, plus follow-up questions to click. **New conversation** clears the chat history the tab sends with each question.
+Each answer shows the agent's text, a chart when one fits (ask for a chart, e.g. the first sample question), the result table, **SQL the agent ran in BigQuery** and **Open this job in BigQuery**, plus follow-up questions to click. **New conversation** clears the chat history the tab sends with each question. The storefront asks the first sample question (the add-to-cart chart) in the background when the app opens, so its answer is already there when you open the tab; ask it again after a spike for fresh numbers.
 
 Governance point: ask *"Show me 3 customers' emails"*. The agent queries `customer_master` as the storefront, a Masked Reader (section 10), so it only ever sees `XXXXX@domain` addresses.
 

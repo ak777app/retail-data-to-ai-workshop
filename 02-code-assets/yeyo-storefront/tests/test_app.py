@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from concurrent.futures import Future
 from pathlib import Path
 
 import streamlit as st
@@ -189,3 +190,20 @@ def test_talk_to_my_agent_shows_answer_sql_table_and_followups(monkeypatch, tmp_
     assert "Open this job in BigQuery" in [b.label for b in at.link_button]
     assert at.error[0].value == "Agent call failed: boom"
     assert "agent_followup_0" not in [b.key for b in at.button]
+
+
+def test_talk_to_my_agent_shows_the_preloaded_chart_answer(monkeypatch, tmp_path):
+    monkeypatch.setenv("PUBLISH_MODE", "local")
+    monkeypatch.setenv("CATALOG_SOURCE", "sample")
+    monkeypatch.setenv("LOCAL_EVENTS_FILE", str(tmp_path / "events.jsonl"))
+    q0 = data_agent.SAMPLE_QUESTIONS[0]
+    preload = Future()
+    preload.set_result([{"userMessage": {"text": q0}},
+                        {"systemMessage": {"text": {"textType": "FINAL_RESPONSE", "parts": ["Peak: 2,298 a minute."]}}}])
+    at = AppTest.from_file(str(APP), default_timeout=30)
+    at.session_state["agent_preload"] = preload
+    at.run()
+    assert not at.exception
+    assert at.session_state["agent_preload"] is None
+    assert [t["q"] for t in at.session_state["agent_turns"]] == [q0]
+    assert any("Peak: 2,298 a minute." in m.value for m in at.markdown)
