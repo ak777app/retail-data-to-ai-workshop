@@ -20,6 +20,7 @@ Run:  streamlit run app.py --server.port 8080
 import base64
 import html
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import streamlit as st
@@ -78,6 +79,11 @@ config = get_config()
 catalog = get_catalog(config)
 publisher = get_publisher(config)
 
+@st.cache_resource
+def _agent_pool() -> ThreadPoolExecutor:
+    return ThreadPoolExecutor(max_workers=4, thread_name_prefix="agent-preload")
+
+
 ss = st.session_state
 ss.setdefault("cart", [])
 ss.setdefault("orders", [])
@@ -89,6 +95,9 @@ ss.setdefault("open_dialog", None)
 ss.setdefault("channel", CHANNEL_ONLINE)
 ss.setdefault("agent_history", [])
 ss.setdefault("agent_turns", [])
+if "agent_preload" not in ss:
+    ss.agent_preload = (None if config.publish_mode == "local" else
+                        _agent_pool().submit(data_agent.ask, config, [], data_agent.SAMPLE_QUESTIONS[0]))
 
 
 def _money(v) -> str:
@@ -216,8 +225,9 @@ st.title("YeYo")
 st.caption("Everyday pharmacy, wellness and lifestyle - in-store, online and on the YeYo Marketplace.")
 
 DEMO_TAB = "Demo center"
+AGENT_TAB = "Talk to my Agent"
 shop_tab, demo_tab, marketing_tab, engineering_tab, governance_tab, agent_tab = st.tabs(
-    ["Shop", DEMO_TAB, "Marketing", "Engineering", "Governance", "Talk to my Agent"], key="nav", on_change="rerun")
+    ["Shop", DEMO_TAB, "Marketing", "Engineering", "Governance", AGENT_TAB], key="nav", on_change="rerun")
 # Coming back to the Demo center tab while the spike is paused resumes it (no button needed on stage).
 _nav, _prev_nav = ss.get("nav"), ss.get("prev_nav")
 ss.prev_nav = _nav
@@ -709,9 +719,9 @@ with governance_tab:
 
 
 # ---------------------------------------------------------------- talk to my agent
-def _ask_agent(question: str) -> None:
+def _ask_agent(question: str, preloaded=None) -> None:
     try:
-        new = data_agent.ask(config, ss.agent_history, question)
+        new = preloaded.result() if preloaded else data_agent.ask(config, ss.agent_history, question)
         reply = data_agent.parse_reply(new[1:])
     except Exception as exc:
         ss.agent_turns.append({"q": question, "error": f"Agent call failed: {exc.__class__.__name__}: {str(exc)[:300]}"})
@@ -771,6 +781,17 @@ with agent_tab:
             _agent_answer(turn, i == len(ss.agent_turns) - 1, offline)
     typed = st.chat_input("Ask about the viral moment, orders, stock or campaigns", key="agent_q", disabled=offline)
     question = ss.pop("agent_pending", None) or typed
+    preload = ss.agent_preload
+    if preload is not None and (question or ss.agent_turns):
+        ss.agent_preload = None
+    elif preload is not None and (preload.done() or _nav == AGENT_TAB):
+        ss.agent_preload = None
+        q0 = data_agent.SAMPLE_QUESTIONS[0]
+        with st.chat_message("user"):
+            st.markdown(q0)
+        with st.chat_message("assistant"), st.spinner("Gemini is writing SQL and querying BigQuery..."):
+            _ask_agent(q0, preloaded=preload)
+        st.rerun()
     if question and not offline:
         with st.chat_message("user"):
             st.markdown(question)
